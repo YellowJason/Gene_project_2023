@@ -23,23 +23,23 @@ parameter g_o_penalty = -14'd12;
 parameter g_e_penalty = -14'd1;
 parameter width = 14;
 
-// Match score of two base
+// Match score of two base (extra bit for overflow)
 wire [width-1:0] match_score;
 wire [width-1:0] V_temp;
 Substitution_Matrix W_0(.i_A(i_A), .i_B(i_B), .o_score(match_score));
 assign V_temp = $signed(i_v_diagonal_score) + $signed(match_score);
 
-// Score from Insertion
+// Score from Insertion (extra bit for overflow)
 wire [width-1:0] I_temp_1, I_temp_2;
 assign I_temp_1 = $signed(i_v_left_score) + $signed(g_o_penalty);
-assign I_temp_2 = $signed(i_i_left_score) + $signed(g_e_penalty);
+assign I_temp_2 = (i_i_left_score == 14'b10000000000000) ? i_i_left_score: $signed(i_i_left_score) + $signed(g_e_penalty); // keep -inf
 assign o_i_score = ($signed(I_temp_1) > $signed(I_temp_2)) ? I_temp_1 : I_temp_2;
 assign o_i_direct = ($signed(I_temp_1) > $signed(I_temp_2)) ? 1'b1 : 1'b0;
 
-// Score from Deletion
+// Score from Deletion (extra bit for overflow)
 wire [width-1:0] D_temp_1, D_temp_2;
 assign D_temp_1 = $signed(i_v_top_score) + $signed(g_o_penalty);
-assign D_temp_2 = $signed(i_d_top_score) + $signed(g_e_penalty);
+assign D_temp_2 = (i_d_top_score == 14'b10000000000000) ? i_d_top_score: $signed(i_d_top_score) + $signed(g_e_penalty);
 assign o_d_score = ($signed(D_temp_1) > $signed(D_temp_2)) ? D_temp_1 : D_temp_2;
 assign o_d_direct = ($signed(D_temp_1) > $signed(D_temp_2)) ? 1'b1 : 1'b0;
 
@@ -92,7 +92,7 @@ always @(*) begin
                 2'd0: score = -14'd4;
                 2'd1: score = -14'd1;
                 2'd2: score = -14'd3;
-                2'd3: score =  14'd4;
+                2'd3: score =  14'd3;
             endcase
         end
     endcase

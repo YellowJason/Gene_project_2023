@@ -2,30 +2,38 @@ module PE_array (
     input i_clk,
     input i_rst,
     input i_start,
-    input i_stop,
     input [127:0] i_B,
     input [1:0]   i_A
 );
 
 integer i;
 
+parameter g_o_penalty = -14'd12;
+parameter g_e_penalty = -14'd1;
+
 // states
 reg [1:0] state, state_nxt;
 parameter IDLE = 2'd0;
 parameter CALC = 2'd1;
 
+// counter
+reg [9:0] counter, counter_nxt;
+
 // 2 input sequence
 reg [1:0] A_array[63:0], A_array_nxt[63:0];
 reg [1:0] B_array[63:0], B_array_nxt[63:0];
 
-// score metrix
-reg [13:0] v_score_metrix[0:63][0:63], v_score_metrix_nxt[0:63][0:63];
-reg [13:0] i_score_metrix[0:63][0:63], i_score_metrix_nxt[0:63][0:63];
-reg [13:0] d_score_metrix[0:63][0:63], d_score_metrix_nxt[0:63][0:63];
+// score metrix // need modify
+reg [13:0] v_score_metrix[0:200][0:63], v_score_metrix_nxt[0:200][0:63];
+reg [13:0] i_score_metrix[0:200][0:63], i_score_metrix_nxt[0:200][0:63];
+reg [13:0] d_score_metrix[0:200][0:63], d_score_metrix_nxt[0:200][0:63];
+
+// save score or not
+reg [63:0] PE_enable, PE_enable_nxt;
 
 // score feed into PEs
-reg [13:0] v_score_array[0:63], v_score_array_nxt[0:63];
-reg [13:0] v_score_dia_array[0:63], v_score_dia_array_nxt[0:63];
+reg [13:0] v_score_array[0:63]    , v_score_array_nxt[0:63];
+reg [13:0] v_score_dia_array[0:63], v_score_dia_array_nxt[0:63]; // v_score delay one cycle
 reg [13:0] i_score_lef_array[0:63], i_score_lef_array_nxt[0:63];
 reg [13:0] d_score_top_array[0:63], d_score_top_array_nxt[0:63];
 
@@ -42,6 +50,11 @@ wire i_dir_nxt[0:63];
 reg d_dir[0:63];
 wire d_dir_nxt[0:63];
 
+// dia & top score of first PE
+wire [13:0] dia_score_first_PE, top_score_first_PE;
+assign dia_score_first_PE = (counter == 0) ? 14'b0 : $signed(g_o_penalty) + $signed(g_e_penalty)*$signed(counter-1);
+assign top_score_first_PE = $signed(g_o_penalty) + $signed(g_e_penalty)*$signed(counter);
+
 // 64 PEs
 genvar gv;
 generate
@@ -50,8 +63,8 @@ generate
             PE single_PE(
                 .i_A(A_array[gv]),
                 .i_B(B_array[gv]),
-                .i_v_diagonal_score(14'b00000000000000),
-                .i_v_top_score(14'b10000000000000),
+                .i_v_diagonal_score(dia_score_first_PE),
+                .i_v_top_score(top_score_first_PE),
                 .i_v_left_score(v_score_array[gv]),
                 .i_i_left_score(i_score_lef_array[gv]),
                 .i_d_top_score(14'b10000000000000),
@@ -84,7 +97,9 @@ generate
 endgenerate
 
 always @(*) begin
+    // keep reg value
     state_nxt = state;
+    counter_nxt = counter;
     for (i=0; i<64; i=i+1) begin
         A_array_nxt[i] = A_array[i];
         B_array_nxt[i] = B_array[i];
@@ -93,31 +108,46 @@ always @(*) begin
         i_score_lef_array_nxt[i] = i_score_lef_array[i];
         d_score_top_array_nxt[i] = d_score_top_array[i];
     end
+    // PE enable is a shift register
+    PE_enable_nxt[0] = i_start;
+    for (i=1; i<64; i=i+1) begin
+        PE_enable_nxt[i] = PE_enable[i-1];
+    end
+    
     case (state)
         IDLE: begin
             if (i_start) begin
                 state_nxt = CALC;
+                counter_nxt = 10'b0;
                 for (i=0; i<64; i=i+1) begin
                     B_array_nxt[i] = i_B[(2*i)+:2];
                 end
                 A_array_nxt[0] = i_A;
             end
+            // initial score
+            for (i=0; i<64; i=i+1) begin
+                v_score_array_nxt[i] = $signed(g_o_penalty) + $signed(g_e_penalty) * $signed(i);  // left boundary
+                v_score_dia_array_nxt[i] = $signed(g_o_penalty) + $signed(g_e_penalty) * $signed(i);
+                i_score_lef_array_nxt[i] = 14'b10000000000000;
+                d_score_top_array_nxt[i] = 14'b10000000000000;
+            end
         end
         CALC: begin
-            if (i_stop) begin
+            if ((PE_enable[63] == 1) & (PE_enable[62] == 0)) begin
                 state_nxt = IDLE;
             end
+            counter_nxt = counter + 1;
             A_array_nxt[0] = i_A;
-            v_score_array_nxt[0] = v_score_out[0];
-            v_score_dia_array_nxt[0] = 14'b10000000000000;
-            i_score_lef_array_nxt[0] = i_score_out[0];
-            d_score_top_array_nxt[0] = 14'b10000000000000;
+            v_score_array_nxt[0] = PE_enable[0] ? v_score_out[0] : v_score_array[0];
+            v_score_dia_array_nxt[0] = PE_enable[1] ? v_score_array[0] : v_score_dia_array[0];
+            i_score_lef_array_nxt[0] = PE_enable[0] ? i_score_out[0] : i_score_lef_array[0];
+            d_score_top_array_nxt[0] = PE_enable[0] ? d_score_out[0] : 14'b10000000000000;
             for (i=1; i<64; i=i+1) begin
                 A_array_nxt[i] = A_array[i-1];
-                v_score_array_nxt[i] = v_score_out[i];
-                v_score_dia_array_nxt[i] = v_score_array[i];
-                i_score_lef_array_nxt[i] = i_score_out[i];
-                d_score_top_array_nxt[i] = d_score_out[i-1];
+                v_score_array_nxt[i] = PE_enable[i] ? v_score_out[i] : v_score_array[i];
+                v_score_dia_array_nxt[i] = PE_enable[i+1] ? v_score_array[i] : v_score_dia_array[i];
+                i_score_lef_array_nxt[i] = PE_enable[i] ? i_score_out[i] : i_score_lef_array[i];
+                d_score_top_array_nxt[i] = PE_enable[i] ? d_score_out[i] : d_score_top_array[i];
             end
         end
     endcase
@@ -127,6 +157,8 @@ always @(posedge i_clk or posedge i_rst) begin
 	// reset
 	if (i_rst) begin
         state <= IDLE;
+        counter <= 10'b0;
+        PE_enable <= 64'b0;
         for (i=0; i<64; i=i+1) begin
             A_array[i] <= 2'b0;
             B_array[i] <= 2'b0;
@@ -142,6 +174,8 @@ always @(posedge i_clk or posedge i_rst) begin
 	// clock edge
 	else begin
         state <= state_nxt;
+        counter <= counter_nxt;
+        PE_enable <= PE_enable_nxt;
         for (i=0; i<64; i=i+1) begin
             A_array[i] <= A_array_nxt[i];
             B_array[i] <= B_array_nxt[i];

@@ -4,7 +4,7 @@
 module tb();
 
 integer i;
-reg clk, rst, i_start, i_stop;
+reg clk, rst, i_start;
 
 reg [1:0] i_A [0:64], i_i_A;
 reg [1:0] i_B [0:64];
@@ -24,7 +24,6 @@ PE_array PE0(
     .i_clk(clk),
     .i_rst(rst),
     .i_start(i_start),
-    .i_stop(i_stop),
     .i_B(i_i_B),
     .i_A(i_i_A)
 );
@@ -40,22 +39,19 @@ initial begin
     clk = 1'b0;
     rst = 1'b0;
     i_start = 1'b0;
-    i_stop = 1'b0;
     #(`CYCLE*1);
     rst = 1'b1;
     #(`CYCLE*2);
     rst = 1'b0;
     #(`CYCLE*1);
 
-    for (i = 0; i < 63; i=i+1) begin
-        if (i == 0) i_start = 1'b1;
-        else        i_start = 1'b0;
-        if (i == 63) i_stop = 1'b1;
-        else         i_stop = 1'b0;
+    for (i = 0; i < 64; i=i+1) begin
+        i_start = 1'b1;
         i_i_A = i_A[i];
         #(`CYCLE*0.1);
         @(negedge clk);
     end
+    i_start = 1'b0;
 
     #(`CYCLE*20);
     $finish;
