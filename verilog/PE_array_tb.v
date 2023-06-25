@@ -53,7 +53,7 @@ initial begin
     end
     i_start = 1'b0;
 
-    #(`CYCLE*20);
+    #(`CYCLE*100);
     $finish;
 end
 

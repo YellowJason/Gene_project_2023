@@ -6,7 +6,7 @@ module PE_array (
     input [1:0]   i_A
 );
 
-integer i;
+integer i, j;
 
 parameter g_o_penalty = -14'd12;
 parameter g_e_penalty = -14'd1;
@@ -24,9 +24,13 @@ reg [1:0] A_array[63:0], A_array_nxt[63:0];
 reg [1:0] B_array[63:0], B_array_nxt[63:0];
 
 // score metrix // need modify
-reg [13:0] v_score_metrix[0:200][0:63], v_score_metrix_nxt[0:200][0:63];
-reg [13:0] i_score_metrix[0:200][0:63], i_score_metrix_nxt[0:200][0:63];
-reg [13:0] d_score_metrix[0:200][0:63], d_score_metrix_nxt[0:200][0:63];
+reg [13:0] v_score_metrix[0:63][0:199], v_score_metrix_nxt[0:63][0:199];
+reg [13:0] i_score_metrix[0:63][0:199], i_score_metrix_nxt[0:63][0:199];
+reg [13:0] d_score_metrix[0:63][0:199], d_score_metrix_nxt[0:63][0:199];
+
+reg [1:0] v_dir_metrix[0:63][0:199], v_dir_metrix_nxt[0:63][0:199];
+reg       i_dir_metrix[0:63][0:199], i_dir_metrix_nxt[0:63][0:199];
+reg       d_dir_metrix[0:63][0:199], d_dir_metrix_nxt[0:63][0:199];
 
 // save score or not
 reg [63:0] PE_enable, PE_enable_nxt;
@@ -153,6 +157,20 @@ always @(*) begin
     endcase
 end
 
+// store scores into matrix
+always @(*) begin
+    v_score_metrix_nxt = v_score_metrix;
+    i_score_metrix_nxt = i_score_metrix;
+    d_score_metrix_nxt = d_score_metrix;
+    if (state == CALC) begin
+        for (i=0; i<64; i=i+1) begin
+            v_score_metrix_nxt[i][counter-i] = PE_enable[i] ? v_score_out[i] : v_score_metrix[i][counter-i];
+            i_score_metrix_nxt[i][counter-i] = PE_enable[i] ? i_score_out[i] : i_score_metrix[i][counter-i];
+            d_score_metrix_nxt[i][counter-i] = PE_enable[i] ? d_score_out[i] : d_score_metrix[i][counter-i];
+        end
+    end
+end
+
 always @(posedge i_clk or posedge i_rst) begin
 	// reset
 	if (i_rst) begin
@@ -169,6 +187,11 @@ always @(posedge i_clk or posedge i_rst) begin
             v_dir[i] <= 2'b0;
             i_dir[i] <= 1'b0;
             d_dir[i] <= 1'b0;
+            for (j=0; j<200; j=j+1) begin
+                v_score_metrix[i][j] <= 14'b10000000000000;
+                i_score_metrix[i][j] <= 14'b10000000000000;
+                d_score_metrix[i][j] <= 14'b10000000000000;
+            end
         end
 	end
 	// clock edge
@@ -186,6 +209,11 @@ always @(posedge i_clk or posedge i_rst) begin
             v_dir[i] <= v_dir_nxt[i];
             i_dir[i] <= i_dir_nxt[i];
             d_dir[i] <= d_dir_nxt[i];
+            for (j=0; j<200; j=j+1) begin
+                v_score_metrix[i][j] <= v_score_metrix_nxt[i][j];
+                i_score_metrix[i][j] <= i_score_metrix_nxt[i][j];
+                d_score_metrix[i][j] <= d_score_metrix_nxt[i][j];
+            end
         end
 	end
 end
