@@ -59,6 +59,24 @@ wire [13:0] dia_score_first_PE, top_score_first_PE;
 assign dia_score_first_PE = (counter == 0) ? 14'b0 : $signed(g_o_penalty) + $signed(g_e_penalty)*$signed(counter-1);
 assign top_score_first_PE = $signed(g_o_penalty) + $signed(g_e_penalty)*$signed(counter);
 
+// min & max of PEs
+wire [13:0] max_in_PEs, min_in_PEs;
+reg [14*64-1:0] v_score_merge;
+always @(*) begin
+    for (i=0; i<64; i=i+1) begin
+        v_score_merge[i*14+:14] = v_score_array[i];
+    end
+end
+max_n_min comparator(
+    .v_score_merge(v_score_merge),
+    .o_max(max_in_PEs),
+    .o_min(min_in_PEs)
+);
+
+// save min & max of every steps
+reg [13:0] min_array [0:199], min_array_nxt [0:199];
+reg [13:0] local_max, local_max_nxt;
+
 // 64 PEs
 genvar gv;
 generate
@@ -112,6 +130,10 @@ always @(*) begin
         i_score_lef_array_nxt[i] = i_score_lef_array[i];
         d_score_top_array_nxt[i] = d_score_top_array[i];
     end
+    for (i=0; i<20; i=i+1) begin
+        min_array_nxt[i] = min_array[i];
+    end
+    local_max_nxt = local_max;
     // PE enable is a shift register
     PE_enable_nxt[0] = i_start;
     for (i=1; i<64; i=i+1) begin
@@ -153,6 +175,10 @@ always @(*) begin
                 i_score_lef_array_nxt[i] = PE_enable[i] ? i_score_out[i] : i_score_lef_array[i];
                 d_score_top_array_nxt[i] = PE_enable[i] ? d_score_out[i] : d_score_top_array[i];
             end
+            if (counter != 0) begin
+                min_array_nxt[counter-1] = min_in_PEs;
+                local_max_nxt = ($signed(local_max) > $signed(max_in_PEs)) ? local_max : max_in_PEs;
+            end
         end
     endcase
 end
@@ -193,6 +219,10 @@ always @(posedge i_clk or posedge i_rst) begin
                 d_score_metrix[i][j] <= 14'b10000000000000;
             end
         end
+        for (j=0; j<200; j=j+1) begin
+            min_array[j] <= 14'b0;
+        end
+        local_max <= 14'b10000000000000;
 	end
 	// clock edge
 	else begin
@@ -215,6 +245,76 @@ always @(posedge i_clk or posedge i_rst) begin
                 d_score_metrix[i][j] <= d_score_metrix_nxt[i][j];
             end
         end
+        for (j=0; j<200; j=j+1) begin
+            min_array[j] <= min_array_nxt[j];
+        end
+        local_max <= local_max_nxt;
 	end
 end
+endmodule
+
+module max_n_min(
+    input [14*64-1:0] v_score_merge,
+    output [13:0] o_max,
+    output [13:0] o_min
+);
+
+integer i;
+
+reg [13:0] v_score [0:63];
+always @(*) begin
+    for (i=0; i<64; i=i+1) begin
+        v_score[i] = v_score_merge[i*14+:14];
+    end
+end
+
+// layer 1, 32 comparators
+reg [13:0] min_temp_l1 [0:31];
+reg [13:0] max_temp_l1 [0:31];
+always @(*) begin
+    for (i=0; i<32; i=i+1) begin
+        min_temp_l1[i] = ($signed(v_score[2*i]) > $signed(v_score[2*i+1])) ? v_score[2*i+1] : v_score[2*i];
+        max_temp_l1[i] = ($signed(v_score[2*i]) > $signed(v_score[2*i+1])) ? v_score[2*i] : v_score[2*i+1];
+    end
+end
+// layer 2, 16 comparators
+reg [13:0] min_temp_l2 [0:15];
+reg [13:0] max_temp_l2 [0:15];
+always @(*) begin
+    for (i=0; i<16; i=i+1) begin
+        min_temp_l2[i] = ($signed(min_temp_l1[2*i]) < $signed(min_temp_l1[2*i+1])) ? min_temp_l1[2*i] : min_temp_l1[2*i+1];
+        max_temp_l2[i] = ($signed(max_temp_l1[2*i]) > $signed(max_temp_l1[2*i+1])) ? max_temp_l1[2*i] : max_temp_l1[2*i+1];
+    end
+end
+// layer 3, 8 comparators
+reg [13:0] min_temp_l3 [0:7];
+reg [13:0] max_temp_l3 [0:7];
+always @(*) begin
+    for (i=0; i<8; i=i+1) begin
+        min_temp_l3[i] = ($signed(min_temp_l2[2*i]) < $signed(min_temp_l2[2*i+1])) ? min_temp_l2[2*i] : min_temp_l2[2*i+1];
+        max_temp_l3[i] = ($signed(max_temp_l2[2*i]) > $signed(max_temp_l2[2*i+1])) ? max_temp_l2[2*i] : max_temp_l2[2*i+1];
+    end
+end
+// layer 4, 4 comparators
+reg [13:0] min_temp_l4 [0:3];
+reg [13:0] max_temp_l4 [0:3];
+always @(*) begin
+    for (i=0; i<4; i=i+1) begin
+        min_temp_l4[i] = ($signed(min_temp_l3[2*i]) < $signed(min_temp_l3[2*i+1])) ? min_temp_l3[2*i] : min_temp_l3[2*i+1];
+        max_temp_l4[i] = ($signed(max_temp_l3[2*i]) > $signed(max_temp_l3[2*i+1])) ? max_temp_l3[2*i] : max_temp_l3[2*i+1];
+    end
+end
+// layer 5, 2 comparators
+reg [13:0] min_temp_l5 [0:1];
+reg [13:0] max_temp_l5 [0:1];
+always @(*) begin
+    for (i=0; i<2; i=i+1) begin
+        min_temp_l5[i] = ($signed(min_temp_l4[2*i]) < $signed(min_temp_l4[2*i+1])) ? min_temp_l4[2*i] : min_temp_l4[2*i+1];
+        max_temp_l5[i] = ($signed(max_temp_l4[2*i]) > $signed(max_temp_l4[2*i+1])) ? max_temp_l4[2*i] : max_temp_l4[2*i+1];
+    end
+end
+// layer 6, final output
+assign o_min = ($signed(min_temp_l5[0]) < $signed(min_temp_l5[1])) ? min_temp_l5[0] : min_temp_l5[1];
+assign o_max = ($signed(max_temp_l5[0]) > $signed(max_temp_l5[1])) ? max_temp_l5[0] : max_temp_l5[1];
+
 endmodule
