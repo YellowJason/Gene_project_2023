@@ -1,9 +1,12 @@
-module PE_array (
+module PE_array_64 (
     input i_clk,
     input i_rst,
     input i_start,
     input [127:0] i_B,
-    input [1:0]   i_A
+    input [1:0]   i_A,
+
+    output o_stripe_end,
+    output [9:0] o_end_position
 );
 
 integer i, j;
@@ -73,9 +76,15 @@ max_n_min comparator(
     .o_min(min_in_PEs)
 );
 
+// end signal (all score < max-threshold)
+reg finish, finish_nxt;
+reg [9:0] end_position, end_position_nxt;
+assign o_stripe_end = finish;
+assign o_end_position = end_position;
+
 // save min & max of every steps
 reg [13:0] min_array [0:199], min_array_nxt [0:199];
-reg [13:0] local_max, local_max_nxt;
+reg [13:0] local_max, local_max_nxt; // max score in the stripe
 
 // 64 PEs
 genvar gv;
@@ -130,7 +139,7 @@ always @(*) begin
         i_score_lef_array_nxt[i] = i_score_lef_array[i];
         d_score_top_array_nxt[i] = d_score_top_array[i];
     end
-    for (i=0; i<20; i=i+1) begin
+    for (i=0; i<200; i=i+1) begin
         min_array_nxt[i] = min_array[i];
     end
     local_max_nxt = local_max;
@@ -139,6 +148,8 @@ always @(*) begin
     for (i=1; i<64; i=i+1) begin
         PE_enable_nxt[i] = PE_enable[i-1];
     end
+    finish_nxt = 1'b0;
+    end_position_nxt = 10'b0; 
     
     case (state)
         IDLE: begin
@@ -178,6 +189,11 @@ always @(*) begin
             if (counter != 0) begin
                 min_array_nxt[counter-1] = min_in_PEs;
                 local_max_nxt = ($signed(local_max) > $signed(max_in_PEs)) ? local_max : max_in_PEs;
+                if ($signed(max_in_PEs) < ($signed(local_max) - 14'd7340)) begin
+                    finish_nxt = 1'b1;
+                    end_position_nxt = counter;
+                    state_nxt = IDLE;
+                end
             end
         end
     endcase
@@ -185,9 +201,13 @@ end
 
 // store scores into matrix
 always @(*) begin
-    v_score_metrix_nxt = v_score_metrix;
-    i_score_metrix_nxt = i_score_metrix;
-    d_score_metrix_nxt = d_score_metrix;
+    for (i=0; i<64; i=i+1) begin
+        for (j=0; j<200; j=j+1) begin
+            v_score_metrix_nxt[i][j] = v_score_metrix[i][j];
+            i_score_metrix_nxt[i][j] = i_score_metrix[i][j];
+            d_score_metrix_nxt[i][j] = d_score_metrix[i][j];
+        end
+    end
     if (state == CALC) begin
         for (i=0; i<64; i=i+1) begin
             v_score_metrix_nxt[i][counter-i] = PE_enable[i] ? v_score_out[i] : v_score_metrix[i][counter-i];
@@ -223,6 +243,8 @@ always @(posedge i_clk or posedge i_rst) begin
             min_array[j] <= 14'b0;
         end
         local_max <= 14'b10000000000000;
+        finish <= 1'b0;
+        end_position <= 10'b0;
 	end
 	// clock edge
 	else begin
@@ -249,6 +271,8 @@ always @(posedge i_clk or posedge i_rst) begin
             min_array[j] <= min_array_nxt[j];
         end
         local_max <= local_max_nxt;
+        finish <= finish_nxt;
+        end_position <= end_position_nxt;
 	end
 end
 endmodule

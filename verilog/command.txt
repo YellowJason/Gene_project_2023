@@ -1,2 +1,4 @@
 vcs PE_tb.v ./PE.v -full64 -R -debug_access+all +v2k +vcs+fsdbon +fsdb+mda +fsdbfile+PE.fsdb
 vcs PE_array_tb.v ./PE_array_64.v ./PE.v -full64 -R -debug_access+all +v2k +vcs+fsdbon +fsdb+mda +fsdbfile+PE_array.fsdb
+
+dc_shell-t -f main.tcl | tee syn.log
