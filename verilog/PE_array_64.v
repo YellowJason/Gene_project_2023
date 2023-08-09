@@ -85,6 +85,8 @@ assign o_end_position = end_position;
 // save min & max of every steps
 reg [13:0] min_array [0:199], min_array_nxt [0:199];
 reg [13:0] local_max, local_max_nxt; // max score in the stripe
+wire [13:0] stop_threshold;
+assign stop_threshold = local_max - 14'd200;
 
 // 64 PEs
 genvar gv;
@@ -139,8 +141,8 @@ always @(*) begin
         i_score_lef_array_nxt[i] = i_score_lef_array[i];
         d_score_top_array_nxt[i] = d_score_top_array[i];
     end
-    for (i=0; i<200; i=i+1) begin
-        min_array_nxt[i] = min_array[i];
+    for (j=0; j<200; j=j+1) begin
+        min_array_nxt[j] = min_array[j];
     end
     local_max_nxt = local_max;
     // PE enable is a shift register
@@ -186,10 +188,10 @@ always @(*) begin
                 i_score_lef_array_nxt[i] = PE_enable[i] ? i_score_out[i] : i_score_lef_array[i];
                 d_score_top_array_nxt[i] = PE_enable[i] ? d_score_out[i] : d_score_top_array[i];
             end
-            if (counter != 0) begin
+            if (counter > 0) begin
                 min_array_nxt[counter-1] = min_in_PEs;
                 local_max_nxt = ($signed(local_max) > $signed(max_in_PEs)) ? local_max : max_in_PEs;
-                if ($signed(max_in_PEs) < ($signed(local_max) - 14'd7340)) begin
+                if ($signed(max_in_PEs) < $signed(stop_threshold)) begin
                     finish_nxt = 1'b1;
                     end_position_nxt = counter;
                     state_nxt = IDLE;
@@ -242,7 +244,7 @@ always @(posedge i_clk or posedge i_rst) begin
         for (j=0; j<200; j=j+1) begin
             min_array[j] <= 14'b0;
         end
-        local_max <= 14'b10000000000000;
+        local_max <= 14'b11000000000000;
         finish <= 1'b0;
         end_position <= 10'b0;
 	end
