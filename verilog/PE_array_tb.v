@@ -3,11 +3,11 @@
 
 module tb();
 
-integer i;
+integer i, j;
 reg clk, rst, i_start;
 
-reg [1:0] i_A [0:64], i_i_A;
-reg [1:0] i_B [0:64];
+reg [1:0] i_A [0:1023], i_i_A;
+reg [1:0] i_B [0:1023];
 
 reg [127:0] i_i_B;
 always @(*) begin
@@ -20,10 +20,11 @@ always begin
   #(`CYCLE/2) clk=~clk;
 end
 
-PE_array PE0(
+PE_array_64 PE0(
     .i_clk(clk),
     .i_rst(rst),
     .i_start(i_start),
+
     .i_B(i_i_B),
     .i_A(i_i_A)
 );
@@ -45,9 +46,10 @@ initial begin
     rst = 1'b0;
     #(`CYCLE*1);
 
-    for (i = 0; i < 64; i=i+1) begin
+    for (j = 0; j < 1024; j=j+1) begin
+        $display(j);
         i_start = 1'b1;
-        i_i_A = i_A[i];
+        i_i_A = i_A[j];
         #(`CYCLE*0.1);
         @(negedge clk);
     end
