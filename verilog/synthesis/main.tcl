@@ -14,7 +14,7 @@ sh rm -rf Report
 sh mkdir Netlist
 sh mkdir Report
 
-read_file -format verilog ../PE_array_64.v
+read_file -format verilog ../PE_array_64_pipe.v
 read_file -format verilog ../PE.v
 current_design $DESIGN
 link

@@ -72,6 +72,8 @@ always @(*) begin
     end
 end
 max_n_min comparator(
+    .i_clk(i_clk),
+    .i_rst(i_rst),
     .v_score_merge(v_score_merge),
     .o_max(max_in_PEs),
     .o_min(min_in_PEs)
@@ -189,8 +191,8 @@ always @(*) begin
                 i_score_lef_array_nxt[i] = PE_enable[i] ? i_score_out[i] : i_score_lef_array[i];
                 d_score_top_array_nxt[i] = PE_enable[i] ? d_score_out[i] : d_score_top_array[i];
             end
-            if (counter > 0) begin
-                min_array_nxt[counter-1] = min_in_PEs;
+            if (counter >= 2) begin
+                min_array_nxt[counter-2] = min_in_PEs;
                 local_max_nxt = ($signed(local_max) > $signed(max_in_PEs)) ? local_max : max_in_PEs;
                 if ($signed(max_in_PEs) < $signed(stop_threshold)) begin
                     state_nxt = EVAL;
@@ -288,6 +290,8 @@ end
 endmodule
 
 module max_n_min(
+    input i_clk,
+    input i_rst,
     input [14*64-1:0] v_score_merge,
     output [13:0] o_max,
     output [13:0] o_min
@@ -323,6 +327,9 @@ end
 // layer 3, 8 comparators
 reg [13:0] min_temp_l3 [0:7];
 reg [13:0] max_temp_l3 [0:7];
+// pipeline
+reg [13:0] min_temp_l3_reg [0:7];
+reg [13:0] max_temp_l3_reg [0:7];
 always @(*) begin
     for (i=0; i<8; i=i+1) begin
         min_temp_l3[i] = ($signed(min_temp_l2[2*i]) < $signed(min_temp_l2[2*i+1])) ? min_temp_l2[2*i] : min_temp_l2[2*i+1];
@@ -351,4 +358,18 @@ end
 assign o_min = ($signed(min_temp_l5[0]) < $signed(min_temp_l5[1])) ? min_temp_l5[0] : min_temp_l5[1];
 assign o_max = ($signed(max_temp_l5[0]) > $signed(max_temp_l5[1])) ? max_temp_l5[0] : max_temp_l5[1];
 
+always @(posedge i_clk or posedge i_rst) begin
+    if (i_rst) begin
+        for (i=0; i<8; i=i+1) begin
+            min_temp_l3_reg[i] <= 14'b0;
+            max_temp_l3_reg[i] <= 14'b0;
+        end
+    end
+    else begin
+        for (i=0; i<8; i=i+1) begin
+            min_temp_l3_reg[i] <= min_temp_l3[i];
+            max_temp_l3_reg[i] <= max_temp_l3[i];
+        end
+    end
+end
 endmodule
