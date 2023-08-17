@@ -10,11 +10,12 @@ logic clk, rst, i_start;
 logic stripe_end;
 logic [9:0] start_position, start_position_reg;
 
-
 logic [1:0] i_A [0:1023], i_i_A;
 logic [1:0] i_B [0:1023];
 
 logic [127:0] i_i_B;
+
+logic [13:0] max;
 
 // always @(*) begin
 //     for (i=0; i<64; i=i+1) begin
@@ -34,7 +35,8 @@ PE_array_64 PE0(
     .i_B(i_i_B),
     .i_A(i_i_A),
     .o_stripe_end(stripe_end),
-    .o_start_position(start_position)
+    .o_start_position(start_position),
+    .o_max_score_stripe(max)
 );
 
 initial begin     

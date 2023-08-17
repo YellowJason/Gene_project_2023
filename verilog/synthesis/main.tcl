@@ -14,7 +14,7 @@ sh rm -rf Report
 sh mkdir Netlist
 sh mkdir Report
 
-read_file -format verilog ../PE_array_64_pipe.v
+read_file -format verilog ../PE_array_64.v
 read_file -format verilog ../PE.v
 current_design $DESIGN
 link
@@ -38,7 +38,7 @@ uniquify
 set_fix_multiple_port_nets -all -buffer_constants  [get_designs *]
 set_fix_hold [all_clocks]
 
-compile
+compile_ultra
 
 report_area > Report/$DESIGN\.area
 report_power > Report/$DESIGN\.power

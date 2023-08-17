@@ -6,7 +6,8 @@ module PE_array_64 (
     input [1:0]   i_A,
 
     output o_stripe_end,
-    output [9:0] o_start_position
+    output [9:0] o_start_position,
+    output [13:0] o_max_score_stripe
 );
 
 integer i, j;
@@ -59,9 +60,9 @@ reg d_dir[0:63];
 wire d_dir_nxt[0:63];
 
 // dia & top score of first PE
-wire [13:0] dia_score_first_PE, top_score_first_PE;
-assign dia_score_first_PE = (counter == 0) ? 14'b0 : $signed(g_o_penalty) + $signed(g_e_penalty)*$signed(counter-1);
-assign top_score_first_PE = $signed(g_o_penalty) + $signed(g_e_penalty)*$signed(counter);
+reg [13:0] dia_score_first_PE, dia_score_first_PE_nxt, top_score_first_PE, top_score_first_PE_nxt;
+// assign dia_score_first_PE = (counter == 0) ? 14'b0 : $signed(g_o_penalty) + $signed(g_e_penalty)*$signed(counter-1);
+// assign top_score_first_PE = $signed(g_o_penalty) + $signed(g_e_penalty)*$signed(counter);
 
 // min & max of PEs
 wire [13:0] max_in_PEs, min_in_PEs;
@@ -88,6 +89,7 @@ reg [13:0] min_array [0:399], min_array_nxt [0:399];
 reg [13:0] local_max, local_max_nxt; // max score in the stripe
 wire [13:0] stop_threshold;
 assign stop_threshold = local_max - 14'd200;
+assign o_max_score_stripe = local_max;
 
 // 64 PEs
 genvar gv;
@@ -151,6 +153,8 @@ always @(*) begin
     for (i=1; i<64; i=i+1) begin
         PE_enable_nxt[i] = PE_enable[i-1];
     end
+    dia_score_first_PE_nxt = dia_score_first_PE;
+    top_score_first_PE_nxt = top_score_first_PE;
     finish_nxt = 1'b0;
     start_position_nxt = 10'b0; 
     
@@ -171,6 +175,8 @@ always @(*) begin
                 i_score_lef_array_nxt[i] = 14'b10000000000000;
                 d_score_top_array_nxt[i] = 14'b10000000000000;
             end
+            dia_score_first_PE_nxt = 14'd0;
+            top_score_first_PE_nxt = g_o_penalty;
         end
         CALC: begin
             if ((PE_enable[63] == 1) & (PE_enable[62] == 0)) begin
@@ -189,6 +195,8 @@ always @(*) begin
                 i_score_lef_array_nxt[i] = PE_enable[i] ? i_score_out[i] : i_score_lef_array[i];
                 d_score_top_array_nxt[i] = PE_enable[i] ? d_score_out[i] : d_score_top_array[i];
             end
+            dia_score_first_PE_nxt = top_score_first_PE;
+            top_score_first_PE_nxt = top_score_first_PE + g_e_penalty;
             if (counter > 0) begin
                 min_array_nxt[counter-1] = min_in_PEs;
                 local_max_nxt = ($signed(local_max) > $signed(max_in_PEs)) ? local_max : max_in_PEs;
@@ -249,6 +257,8 @@ always @(posedge i_clk or posedge i_rst) begin
                 d_score_metrix[i][j] <= 14'b10000000000000;
             end
         end
+        dia_score_first_PE <= 14'd0;
+        top_score_first_PE <= g_o_penalty;
         for (j=0; j<400; j=j+1) begin
             min_array[j] <= 14'b0;
         end
@@ -277,6 +287,8 @@ always @(posedge i_clk or posedge i_rst) begin
                 d_score_metrix[i][j] <= d_score_metrix_nxt[i][j];
             end
         end
+        dia_score_first_PE <= dia_score_first_PE_nxt;
+        top_score_first_PE <= top_score_first_PE_nxt;
         for (j=0; j<400; j=j+1) begin
             min_array[j] <= min_array_nxt[j];
         end
