@@ -91,6 +91,9 @@ wire [13:0] stop_threshold;
 assign stop_threshold = local_max - 14'd200;
 assign o_max_score_stripe = local_max;
 
+// save score of last PE for next stripe
+reg [13:0] score_last_PE[0:399], score_last_PE_nxt[0:399];
+
 // 64 PEs
 genvar gv;
 generate
@@ -146,12 +149,12 @@ always @(*) begin
     end
     for (j=0; j<400; j=j+1) begin
         min_array_nxt[j] = min_array[j];
+        score_last_PE_nxt[j] = score_last_PE[j];
     end
     local_max_nxt = local_max;
     // PE enable is a shift register
-    PE_enable_nxt[0] = i_start;
-    for (i=1; i<64; i=i+1) begin
-        PE_enable_nxt[i] = PE_enable[i-1];
+    for (i=0; i<64; i=i+1) begin
+        PE_enable_nxt[i] = PE_enable[i];
     end
     dia_score_first_PE_nxt = dia_score_first_PE;
     top_score_first_PE_nxt = top_score_first_PE;
@@ -167,6 +170,10 @@ always @(*) begin
                     B_array_nxt[i] = i_B[(2*i)+:2];
                 end
                 A_array_nxt[0] = i_A;
+                PE_enable_nxt[0] = i_start;
+                for (i=1; i<64; i=i+1) begin
+                    PE_enable_nxt[i] = 1'b0;
+                end
             end
             // initial score
             for (i=0; i<64; i=i+1) begin
@@ -175,12 +182,21 @@ always @(*) begin
                 i_score_lef_array_nxt[i] = 14'b10000000000000;
                 d_score_top_array_nxt[i] = 14'b10000000000000;
             end
-            dia_score_first_PE_nxt = 14'd0;
-            top_score_first_PE_nxt = g_o_penalty;
+            dia_score_first_PE_nxt = dia_score_first_PE;
+            top_score_first_PE_nxt = score_last_PE[0];
+            local_max_nxt = 14'b11000000000000;
+            for (j=0; j<400; j=j+1) begin
+                score_last_PE_nxt[j] = score_last_PE[j];
+            end
         end
         CALC: begin
+            PE_enable_nxt[0] = i_start;
+            for (i=1; i<64; i=i+1) begin
+                PE_enable_nxt[i] = PE_enable[i-1];
+            end
             if ((PE_enable[63] == 1) & (PE_enable[62] == 0)) begin
                 state_nxt = EVAL;
+                counter_nxt = 10'b0;
             end
             counter_nxt = counter + 1;
             A_array_nxt[0] = i_A;
@@ -196,7 +212,7 @@ always @(*) begin
                 d_score_top_array_nxt[i] = PE_enable[i] ? d_score_out[i] : d_score_top_array[i];
             end
             dia_score_first_PE_nxt = top_score_first_PE;
-            top_score_first_PE_nxt = top_score_first_PE + g_e_penalty;
+            top_score_first_PE_nxt = score_last_PE[counter+1];
             if (counter > 0) begin
                 min_array_nxt[counter-1] = min_in_PEs;
                 local_max_nxt = ($signed(local_max) > $signed(max_in_PEs)) ? local_max : max_in_PEs;
@@ -205,9 +221,17 @@ always @(*) begin
                     counter_nxt = 10'b0;
                 end
             end
+            if (PE_enable[63] == 1) begin
+                score_last_PE_nxt[counter-63] = v_score_out[63];
+            end
         end
-        EVAL: begin
+        EVAL: begin // find next start column
             counter_nxt = counter + 1;
+            dia_score_first_PE_nxt = score_last_PE[0];
+            score_last_PE_nxt[399] = 14'b10000000000000;
+            for (j=0; j<399; j=j+1) begin
+                score_last_PE_nxt[j] = score_last_PE[j+1];
+            end
             if (min_array[counter] >= stop_threshold) begin
                 finish_nxt = 1'b1;
                 start_position_nxt = counter;
@@ -261,6 +285,7 @@ always @(posedge i_clk or posedge i_rst) begin
         top_score_first_PE <= g_o_penalty;
         for (j=0; j<400; j=j+1) begin
             min_array[j] <= 14'b0;
+            score_last_PE[j] <= $signed(g_o_penalty) + $signed(g_e_penalty) * $signed(j);
         end
         local_max <= 14'b11000000000000;
         finish <= 1'b0;
@@ -291,6 +316,7 @@ always @(posedge i_clk or posedge i_rst) begin
         top_score_first_PE <= top_score_first_PE_nxt;
         for (j=0; j<400; j=j+1) begin
             min_array[j] <= min_array_nxt[j];
+            score_last_PE[j] <= score_last_PE_nxt[j];
         end
         local_max <= local_max_nxt;
         finish <= finish_nxt;

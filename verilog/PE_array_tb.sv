@@ -61,7 +61,7 @@ initial begin
 
     for (j = 0; j < 1024; j=j+1) begin
         if (stripe_end == 1'b1) begin
-            start_position_reg = start_position;
+            start_position_reg = start_position+1;
             break;
         end
         $display(j);
@@ -77,7 +77,7 @@ initial begin
     end
     #(`CYCLE*5);
 
-    for (j = start_position; j < 1024; j=j+1) begin
+    for (j = start_position_reg; j < 1024; j=j+1) begin
         if (stripe_end == 1'b1) begin
             start_position_reg = start_position;
             break;
