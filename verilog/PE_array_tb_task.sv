@@ -39,6 +39,12 @@ PE_array_64 PE0(
     .o_max_score_stripe(max)
 );
 
+task run_new_stripe;
+    input stripe_end;
+    input start_position;
+
+endtask
+
 initial begin     
     $fsdbDumpfile("PE_array.fsdb");
     $fsdbDumpvars();
