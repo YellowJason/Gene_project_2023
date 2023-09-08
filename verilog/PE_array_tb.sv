@@ -59,9 +59,12 @@ initial begin
     end
     #(`CYCLE*1);
 
+    $display("start position: ", start_position_reg);
     for (j = 0; j < 1024; j=j+1) begin
         if (stripe_end == 1'b1) begin
             start_position_reg = start_position+1;
+            $display("end position: ", j);
+            $display("max score: ", max);
             break;
         end
         $display(j);
@@ -77,9 +80,12 @@ initial begin
     end
     #(`CYCLE*5);
 
+    $display("start position: ", start_position_reg);
     for (j = start_position_reg; j < 1024; j=j+1) begin
         if (stripe_end == 1'b1) begin
             start_position_reg = start_position;
+            $display("end position: ", j);
+            $display("max score: ", max);
             break;
         end
         $display(j);
