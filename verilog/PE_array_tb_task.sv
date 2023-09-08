@@ -3,8 +3,7 @@
 
 module tb;
 
-integer i;
-integer j;
+integer i, j, k;
 
 logic clk, rst, i_start;
 logic stripe_end;
@@ -40,9 +39,29 @@ PE_array_64 PE0(
 );
 
 task run_new_stripe;
-    input stripe_end;
-    input start_position;
+    input k; // num of stripe
 
+    i_start = 1'b0;
+
+    for (i=0; i<64; i=i+1) begin
+        i_i_B[2*i+:2] = i_B[i+(k*64)];
+    end
+    #(`CYCLE*1);
+
+    $display("start position: ", start_position_reg);
+    for (j = start_position_reg; j < 1024; j=j+1) begin
+        if (stripe_end == 1'b1) begin
+            start_position_reg <= start_position_reg + start_position+1;
+            $display("end position: ", j);
+            $display("max score: ", max);
+            break;
+        end
+        
+        i_start = 1'b1;
+        i_i_A = i_A[j];
+        #(`CYCLE*0.1);
+        @(negedge clk);
+    end
 endtask
 
 initial begin     
@@ -56,46 +75,52 @@ initial begin
     clk = 1'b0;
     rst = 1'b0;
     i_start = 1'b0;
+    start_position_reg = 10'b0;
     #(`CYCLE*1);
     rst = 1'b1;
     #(`CYCLE*2);
     rst = 1'b0;
-    for (i=0; i<64; i=i+1) begin
-        i_i_B[2*i+:2] = i_B[i]; 
-    end
-    #(`CYCLE*1);
 
-    for (j = 0; j < 1024; j=j+1) begin
-        if (stripe_end == 1'b1) begin
-            start_position_reg = start_position+1;
-            break;
-        end
-        $display(j);
-        i_start = 1'b1;
-        i_i_A = i_A[j];
-        #(`CYCLE*0.1);
-        @(negedge clk);
+    for (k=0; k<10; k=k+1) begin
+        run_new_stripe(k);
     end
 
-    i_start = 1'b0;
-    for (i=0; i<64; i=i+1) begin
-        i_i_B[2*i+:2] = i_B[i+64]; 
-    end
-    #(`CYCLE*5);
+    // for (i=0; i<64; i=i+1) begin
+    //     i_i_B[2*i+:2] = i_B[i]; 
+    // end
+    // #(`CYCLE*1);
 
-    for (j = start_position_reg; j < 1024; j=j+1) begin
-        if (stripe_end == 1'b1) begin
-            start_position_reg = start_position;
-            break;
-        end
-        $display(j);
-        i_start = 1'b1;
-        i_i_A = i_A[j];
-        #(`CYCLE*0.1);
-        @(negedge clk);
-    end
+    // for (j = 0; j < 1024; j=j+1) begin
+    //     if (stripe_end == 1'b1) begin
+    //         start_position_reg = start_position+1;
+    //         break;
+    //     end
+    //     $display(j);
+    //     i_start = 1'b1;
+    //     i_i_A = i_A[j];
+    //     #(`CYCLE*0.1);
+    //     @(negedge clk);
+    // end
 
-    #(`CYCLE*100);
+    // i_start = 1'b0;
+    // for (i=0; i<64; i=i+1) begin
+    //     i_i_B[2*i+:2] = i_B[i+64]; 
+    // end
+    // #(`CYCLE*5);
+
+    // for (j = start_position_reg; j < 1024; j=j+1) begin
+    //     if (stripe_end == 1'b1) begin
+    //         start_position_reg = start_position;
+    //         break;
+    //     end
+    //     $display(j);
+    //     i_start = 1'b1;
+    //     i_i_A = i_A[j];
+    //     #(`CYCLE*0.1);
+    //     @(negedge clk);
+    // end
+
+    #(`CYCLE*20);
     $finish;
 end
 
