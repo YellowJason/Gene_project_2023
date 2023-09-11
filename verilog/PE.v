@@ -32,14 +32,14 @@ assign V_temp = $signed(i_v_diagonal_score) + $signed(match_score);
 // Score from Insertion (extra bit for overflow)
 wire [width-1:0] I_temp_1, I_temp_2;
 assign I_temp_1 = $signed(i_v_left_score) + $signed(g_o_penalty);
-assign I_temp_2 = (i_i_left_score == 14'b10000000000000) ? i_i_left_score: $signed(i_i_left_score) + $signed(g_e_penalty); // keep -inf
+assign I_temp_2 = $signed(i_i_left_score) + $signed(g_e_penalty);
 assign o_i_score = ($signed(I_temp_1) > $signed(I_temp_2)) ? I_temp_1 : I_temp_2;
 assign o_i_direct = ($signed(I_temp_1) > $signed(I_temp_2)) ? 1'b1 : 1'b0;
 
 // Score from Deletion (extra bit for overflow)
 wire [width-1:0] D_temp_1, D_temp_2;
 assign D_temp_1 = $signed(i_v_top_score) + $signed(g_o_penalty);
-assign D_temp_2 = (i_d_top_score == 14'b10000000000000) ? i_d_top_score: $signed(i_d_top_score) + $signed(g_e_penalty);
+assign D_temp_2 = $signed(i_d_top_score) + $signed(g_e_penalty);
 assign o_d_score = ($signed(D_temp_1) > $signed(D_temp_2)) ? D_temp_1 : D_temp_2;
 assign o_d_direct = ($signed(D_temp_1) > $signed(D_temp_2)) ? 1'b1 : 1'b0;
 

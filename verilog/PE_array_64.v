@@ -85,14 +85,14 @@ assign o_stripe_end = finish;
 assign o_start_position = start_position;
 
 // save min & max of every steps
-reg [13:0] min_array [0:399], min_array_nxt [0:399];
+reg [13:0] min_array [0:499], min_array_nxt [0:499];
 reg [13:0] local_max, local_max_nxt; // max score in the stripe
 wire [13:0] stop_threshold;
-assign stop_threshold = local_max - 14'd200;
+assign stop_threshold = local_max - 14'd250;
 assign o_max_score_stripe = local_max;
 
 // save score of last PE for next stripe
-reg [13:0] score_last_PE[0:399], score_last_PE_nxt[0:399];
+reg [13:0] score_last_PE[0:499], score_last_PE_nxt[0:499];
 
 // 64 PEs
 genvar gv;
@@ -106,7 +106,7 @@ generate
                 .i_v_top_score(top_score_first_PE),
                 .i_v_left_score(v_score_array[gv]),
                 .i_i_left_score(i_score_lef_array[gv]),
-                .i_d_top_score(14'b10000000000000),
+                .i_d_top_score(14'b11000000000000),
                 .o_v_score(v_score_out[gv]),
                 .o_i_score(i_score_out[gv]),
                 .o_d_score(d_score_out[gv]),
@@ -147,7 +147,7 @@ always @(*) begin
         i_score_lef_array_nxt[i] = i_score_lef_array[i];
         d_score_top_array_nxt[i] = d_score_top_array[i];
     end
-    for (j=0; j<400; j=j+1) begin
+    for (j=0; j<500; j=j+1) begin
         min_array_nxt[j] = min_array[j];
         score_last_PE_nxt[j] = score_last_PE[j];
     end
@@ -177,15 +177,17 @@ always @(*) begin
             end
             // initial score
             for (i=0; i<64; i=i+1) begin
-                v_score_array_nxt[i] = $signed(g_o_penalty) + $signed(g_e_penalty) * $signed(i);  // left boundary
+                // change fisrt left score of all PEs to -inf
+                // v_score_array_nxt[i] = $signed(g_o_penalty) + $signed(g_e_penalty) * $signed(i);  // left boundary
+                v_score_array_nxt[i] = 14'b11000000000000;
                 v_score_dia_array_nxt[i] = $signed(g_o_penalty) + $signed(g_e_penalty) * $signed(i);
-                i_score_lef_array_nxt[i] = 14'b10000000000000;
-                d_score_top_array_nxt[i] = 14'b10000000000000;
+                i_score_lef_array_nxt[i] = 14'b11000000000000;
+                d_score_top_array_nxt[i] = 14'b11000000000000;
             end
             dia_score_first_PE_nxt = dia_score_first_PE;
             top_score_first_PE_nxt = score_last_PE[0];
             local_max_nxt = 14'b11000000000000;
-            for (j=0; j<400; j=j+1) begin
+            for (j=0; j<500; j=j+1) begin
                 score_last_PE_nxt[j] = score_last_PE[j];
             end
         end
@@ -203,7 +205,7 @@ always @(*) begin
             v_score_array_nxt[0] = PE_enable[0] ? v_score_out[0] : v_score_array[0];
             v_score_dia_array_nxt[0] = PE_enable[1] ? v_score_array[0] : v_score_dia_array[0];
             i_score_lef_array_nxt[0] = PE_enable[0] ? i_score_out[0] : i_score_lef_array[0];
-            d_score_top_array_nxt[0] = PE_enable[0] ? d_score_out[0] : 14'b10000000000000;
+            d_score_top_array_nxt[0] = PE_enable[0] ? d_score_out[0] : 14'b11000000000000;
             for (i=1; i<64; i=i+1) begin
                 A_array_nxt[i] = A_array[i-1];
                 v_score_array_nxt[i] = PE_enable[i] ? v_score_out[i] : v_score_array[i];
@@ -213,12 +215,14 @@ always @(*) begin
             end
             dia_score_first_PE_nxt = top_score_first_PE;
             top_score_first_PE_nxt = score_last_PE[counter+1];
+            // min & max will delay one cycle
             if (counter > 0) begin
-                min_array_nxt[counter-1] = min_in_PEs;
+                min_array_nxt[counter-64] = min_in_PEs; // minimum of 64'th step should be put in first position
                 local_max_nxt = ($signed(local_max) > $signed(max_in_PEs)) ? local_max : max_in_PEs;
                 if ($signed(max_in_PEs) < $signed(stop_threshold)) begin
                     state_nxt = EVAL;
                     counter_nxt = 10'b0;
+                    dia_score_first_PE_nxt = 14'b11000000000000; // if next stripe start from left boundary
                 end
             end
             if (PE_enable[63] == 1) begin
@@ -227,15 +231,17 @@ always @(*) begin
         end
         EVAL: begin // find next start column
             counter_nxt = counter + 1;
-            dia_score_first_PE_nxt = score_last_PE[0];
-            score_last_PE_nxt[399] = 14'b10000000000000;
-            for (j=0; j<399; j=j+1) begin
-                score_last_PE_nxt[j] = score_last_PE[j+1];
-            end
             if (min_array[counter] >= stop_threshold) begin
                 finish_nxt = 1'b1;
                 start_position_nxt = counter;
                 state_nxt = IDLE;
+            end
+            else begin
+                dia_score_first_PE_nxt = score_last_PE[0];
+                score_last_PE_nxt[499] = 14'b11000000000000;
+                for (j=0; j<499; j=j+1) begin
+                    score_last_PE_nxt[j] = score_last_PE[j+1];
+                end
             end
         end
     endcase
@@ -276,14 +282,14 @@ always @(posedge i_clk or posedge i_rst) begin
             i_dir[i] <= 1'b0;
             d_dir[i] <= 1'b0;
             for (j=0; j<200; j=j+1) begin
-                v_score_metrix[i][j] <= 14'b10000000000000;
-                i_score_metrix[i][j] <= 14'b10000000000000;
-                d_score_metrix[i][j] <= 14'b10000000000000;
+                v_score_metrix[i][j] <= 14'b11000000000000;
+                i_score_metrix[i][j] <= 14'b11000000000000;
+                d_score_metrix[i][j] <= 14'b11000000000000;
             end
         end
         dia_score_first_PE <= 14'd0;
         top_score_first_PE <= g_o_penalty;
-        for (j=0; j<400; j=j+1) begin
+        for (j=0; j<500; j=j+1) begin
             min_array[j] <= 14'b0;
             score_last_PE[j] <= $signed(g_o_penalty) + $signed(g_e_penalty) * $signed(j);
         end
@@ -314,7 +320,7 @@ always @(posedge i_clk or posedge i_rst) begin
         end
         dia_score_first_PE <= dia_score_first_PE_nxt;
         top_score_first_PE <= top_score_first_PE_nxt;
-        for (j=0; j<400; j=j+1) begin
+        for (j=0; j<500; j=j+1) begin
             min_array[j] <= min_array_nxt[j];
             score_last_PE[j] <= score_last_PE_nxt[j];
         end

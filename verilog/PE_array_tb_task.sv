@@ -51,8 +51,8 @@ task run_new_stripe;
     $display("start position: ", start_position_reg);
     for (j = start_position_reg; j < 1024; j=j+1) begin
         if (stripe_end == 1'b1) begin
-            start_position_reg <= start_position_reg + start_position+1;
-            $display("end position: ", j);
+            start_position_reg <= start_position_reg + start_position;
+            // $display("end position: ", j); // not accurate
             $display("max score: ", max);
             break;
         end
@@ -81,7 +81,7 @@ initial begin
     #(`CYCLE*2);
     rst = 1'b0;
 
-    for (k=0; k<10; k=k+1) begin
+    for (k=0; k<5; k=k+1) begin
         run_new_stripe(k);
     end
 
