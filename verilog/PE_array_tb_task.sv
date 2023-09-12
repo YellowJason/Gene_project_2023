@@ -7,7 +7,7 @@ integer i, j, k;
 
 logic clk, rst, i_start;
 logic stripe_end;
-logic [9:0] start_position, start_position_reg;
+logic [9:0] start_position, start_position_reg, end_position;
 
 logic [1:0] i_A [0:1023], i_i_A;
 logic [1:0] i_B [0:1023];
@@ -35,6 +35,7 @@ PE_array_64 PE0(
     .i_A(i_i_A),
     .o_stripe_end(stripe_end),
     .o_start_position(start_position),
+    .o_end_position(end_position),
     .o_max_score_stripe(max)
 );
 
@@ -48,12 +49,14 @@ task run_new_stripe;
     end
     #(`CYCLE*1);
 
-    $display("start position: ", start_position_reg);
+    $display("----------stripe ", k, "----------");
+    $display("start position:", start_position_reg);
     for (j = start_position_reg; j < 1024; j=j+1) begin
         if (stripe_end == 1'b1) begin
             start_position_reg <= start_position_reg + start_position;
             // $display("end position: ", j); // not accurate
-            $display("max score: ", max);
+            $display("end position:", end_position);
+            $display("max score:", max);
             break;
         end
         

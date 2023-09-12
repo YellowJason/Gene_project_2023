@@ -7,6 +7,7 @@ module PE_array_64 (
 
     output o_stripe_end,
     output [9:0] o_start_position,
+    output [9:0] o_end_position,
     output [13:0] o_max_score_stripe
 );
 
@@ -14,6 +15,7 @@ integer i, j;
 
 parameter g_o_penalty = -14'd12;
 parameter g_e_penalty = -14'd1;
+parameter mem_length = 600;
 
 // states
 reg [1:0] state, state_nxt;
@@ -61,8 +63,11 @@ wire d_dir_nxt[0:63];
 
 // dia & top score of first PE
 reg [13:0] dia_score_first_PE, dia_score_first_PE_nxt, top_score_first_PE, top_score_first_PE_nxt;
-// assign dia_score_first_PE = (counter == 0) ? 14'b0 : $signed(g_o_penalty) + $signed(g_e_penalty)*$signed(counter-1);
-// assign top_score_first_PE = $signed(g_o_penalty) + $signed(g_e_penalty)*$signed(counter);
+reg [13:0] top_d_first_PE, top_d_first_PE_nxt;
+
+// save score of last PE for next stripe
+reg [13:0] score_last_PE[0:mem_length-1], score_last_PE_nxt[0:mem_length-1];
+reg [13:0] d_last_PE[0:mem_length-1], d_last_PE_nxt[0:mem_length-1];
 
 // min & max of PEs
 wire [13:0] max_in_PEs, min_in_PEs;
@@ -81,18 +86,17 @@ max_n_min comparator(
 // end signal (all score < max-threshold)
 reg finish, finish_nxt;
 reg [9:0] start_position, start_position_nxt;
+reg [9:0] end_position, end_position_nxt;
 assign o_stripe_end = finish;
 assign o_start_position = start_position;
+assign o_end_position = end_position;
 
 // save min & max of every steps
-reg [13:0] min_array [0:499], min_array_nxt [0:499];
+reg [13:0] min_array [0:mem_length-1], min_array_nxt [0:mem_length-1];
 reg [13:0] local_max, local_max_nxt; // max score in the stripe
 wire [13:0] stop_threshold;
 assign stop_threshold = local_max - 14'd250;
 assign o_max_score_stripe = local_max;
-
-// save score of last PE for next stripe
-reg [13:0] score_last_PE[0:499], score_last_PE_nxt[0:499];
 
 // 64 PEs
 genvar gv;
@@ -106,7 +110,7 @@ generate
                 .i_v_top_score(top_score_first_PE),
                 .i_v_left_score(v_score_array[gv]),
                 .i_i_left_score(i_score_lef_array[gv]),
-                .i_d_top_score(14'b11000000000000),
+                .i_d_top_score(top_d_first_PE),
                 .o_v_score(v_score_out[gv]),
                 .o_i_score(i_score_out[gv]),
                 .o_d_score(d_score_out[gv]),
@@ -147,9 +151,10 @@ always @(*) begin
         i_score_lef_array_nxt[i] = i_score_lef_array[i];
         d_score_top_array_nxt[i] = d_score_top_array[i];
     end
-    for (j=0; j<500; j=j+1) begin
+    for (j=0; j<mem_length; j=j+1) begin
         min_array_nxt[j] = min_array[j];
         score_last_PE_nxt[j] = score_last_PE[j];
+        d_last_PE_nxt[j] = d_last_PE[j];
     end
     local_max_nxt = local_max;
     // PE enable is a shift register
@@ -158,8 +163,10 @@ always @(*) begin
     end
     dia_score_first_PE_nxt = dia_score_first_PE;
     top_score_first_PE_nxt = top_score_first_PE;
+    top_d_first_PE_nxt = top_d_first_PE;
     finish_nxt = 1'b0;
-    start_position_nxt = 10'b0; 
+    start_position_nxt = 10'b0;
+    end_position_nxt = end_position;
     
     case (state)
         IDLE: begin
@@ -180,16 +187,14 @@ always @(*) begin
                 // change fisrt left score of all PEs to -inf
                 // v_score_array_nxt[i] = $signed(g_o_penalty) + $signed(g_e_penalty) * $signed(i);  // left boundary
                 v_score_array_nxt[i] = 14'b11000000000000;
-                v_score_dia_array_nxt[i] = $signed(g_o_penalty) + $signed(g_e_penalty) * $signed(i);
+                v_score_dia_array_nxt[i] = 14'b11000000000000;
                 i_score_lef_array_nxt[i] = 14'b11000000000000;
                 d_score_top_array_nxt[i] = 14'b11000000000000;
             end
             dia_score_first_PE_nxt = dia_score_first_PE;
             top_score_first_PE_nxt = score_last_PE[0];
+            top_d_first_PE_nxt = d_last_PE[0];
             local_max_nxt = 14'b11000000000000;
-            for (j=0; j<500; j=j+1) begin
-                score_last_PE_nxt[j] = score_last_PE[j];
-            end
         end
         CALC: begin
             PE_enable_nxt[0] = i_start;
@@ -215,6 +220,7 @@ always @(*) begin
             end
             dia_score_first_PE_nxt = top_score_first_PE;
             top_score_first_PE_nxt = score_last_PE[counter+1];
+            top_d_first_PE_nxt = d_last_PE[counter+1];
             // min & max will delay one cycle
             if (counter > 0) begin
                 min_array_nxt[counter-64] = min_in_PEs; // minimum of 64'th step should be put in first position
@@ -223,24 +229,28 @@ always @(*) begin
                     state_nxt = EVAL;
                     counter_nxt = 10'b0;
                     dia_score_first_PE_nxt = 14'b11000000000000; // if next stripe start from left boundary
+                    end_position_nxt = counter;
                 end
             end
             if (PE_enable[63] == 1) begin
                 score_last_PE_nxt[counter-63] = v_score_out[63];
+                d_last_PE_nxt[counter-63] = d_score_out[63];
             end
         end
         EVAL: begin // find next start column
             counter_nxt = counter + 1;
-            if (min_array[counter] >= stop_threshold) begin
+            if (min_array[counter] > stop_threshold) begin
                 finish_nxt = 1'b1;
                 start_position_nxt = counter;
                 state_nxt = IDLE;
             end
             else begin
                 dia_score_first_PE_nxt = score_last_PE[0];
-                score_last_PE_nxt[499] = 14'b11000000000000;
-                for (j=0; j<499; j=j+1) begin
+                score_last_PE_nxt[mem_length-1] = 14'b11000000000000;
+                d_last_PE_nxt[mem_length-1] = 14'b11000000000000;
+                for (j=0; j<mem_length-1; j=j+1) begin
                     score_last_PE_nxt[j] = score_last_PE[j+1];
+                    d_last_PE_nxt[j] = d_last_PE[j+1];
                 end
             end
         end
@@ -289,13 +299,16 @@ always @(posedge i_clk or posedge i_rst) begin
         end
         dia_score_first_PE <= 14'd0;
         top_score_first_PE <= g_o_penalty;
-        for (j=0; j<500; j=j+1) begin
+        top_d_first_PE <= 14'b11000000000000;
+        for (j=0; j<mem_length; j=j+1) begin
             min_array[j] <= 14'b0;
             score_last_PE[j] <= $signed(g_o_penalty) + $signed(g_e_penalty) * $signed(j);
+            d_last_PE[j] <= 14'b11000000000000;
         end
         local_max <= 14'b11000000000000;
         finish <= 1'b0;
         start_position <= 10'b0;
+        end_position <= 10'b0;
 	end
 	// clock edge
 	else begin
@@ -320,13 +333,16 @@ always @(posedge i_clk or posedge i_rst) begin
         end
         dia_score_first_PE <= dia_score_first_PE_nxt;
         top_score_first_PE <= top_score_first_PE_nxt;
-        for (j=0; j<500; j=j+1) begin
+        top_d_first_PE <= top_d_first_PE_nxt;
+        for (j=0; j<mem_length; j=j+1) begin
             min_array[j] <= min_array_nxt[j];
             score_last_PE[j] <= score_last_PE_nxt[j];
+            d_last_PE[j] <= d_last_PE_nxt[j];
         end
         local_max <= local_max_nxt;
         finish <= finish_nxt;
         start_position <= start_position_nxt;
+        end_position <= end_position_nxt;
 	end
 end
 endmodule
