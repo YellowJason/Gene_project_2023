@@ -48,6 +48,12 @@ reg [13:0] v_score_dia_array[0:63], v_score_dia_array_nxt[0:63]; // v_score dela
 reg [13:0] i_score_lef_array[0:63], i_score_lef_array_nxt[0:63];
 reg [13:0] d_score_top_array[0:63], d_score_top_array_nxt[0:63];
 
+// score for left boundary initial
+reg [13:0] left_bound_init, left_bound_init_nxt;
+
+// if stripe start from left boundary
+reg start_on_bound, start_on_bound_nxt;
+
 // PEs output
 wire [13:0] v_score_out[0:63];
 wire [13:0] i_score_out[0:63];
@@ -167,6 +173,8 @@ always @(*) begin
     finish_nxt = 1'b0;
     start_position_nxt = 10'b0;
     end_position_nxt = end_position;
+    left_bound_init_nxt = left_bound_init;
+    start_on_bound_nxt = start_on_bound;
     
     case (state)
         IDLE: begin
@@ -181,6 +189,7 @@ always @(*) begin
                 for (i=1; i<64; i=i+1) begin
                     PE_enable_nxt[i] = 1'b0;
                 end
+                left_bound_init_nxt = left_bound_init + $signed(g_e_penalty);
             end
             // initial score
             for (i=0; i<64; i=i+1) begin
@@ -190,6 +199,9 @@ always @(*) begin
                 v_score_dia_array_nxt[i] = 14'b11000000000000;
                 i_score_lef_array_nxt[i] = 14'b11000000000000;
                 d_score_top_array_nxt[i] = 14'b11000000000000;
+            end
+            if (start_on_bound) begin
+                v_score_array_nxt[0] = left_bound_init;
             end
             dia_score_first_PE_nxt = dia_score_first_PE;
             top_score_first_PE_nxt = score_last_PE[0];
@@ -236,12 +248,19 @@ always @(*) begin
                 score_last_PE_nxt[counter-63] = v_score_out[63];
                 d_last_PE_nxt[counter-63] = d_score_out[63];
             end
+            if (counter < 10'd63) begin
+                left_bound_init_nxt = left_bound_init + $signed(g_e_penalty);
+                if (start_on_bound) v_score_array_nxt[counter+1] = left_bound_init;
+            end
         end
         EVAL: begin // find next start column
             counter_nxt = counter + 1;
-            if (min_array[counter] > stop_threshold) begin
+            if ($signed(min_array[counter]) > $signed(stop_threshold)) begin
                 finish_nxt = 1'b1;
                 start_position_nxt = counter;
+                if ((counter != 0) & (start_on_bound == 1'b1)) begin
+                    start_on_bound_nxt = 1'b0;
+                end
                 state_nxt = IDLE;
             end
             else begin
@@ -309,6 +328,8 @@ always @(posedge i_clk or posedge i_rst) begin
         finish <= 1'b0;
         start_position <= 10'b0;
         end_position <= 10'b0;
+        left_bound_init <= $signed(g_o_penalty);
+        start_on_bound <= 1'b1;
 	end
 	// clock edge
 	else begin
@@ -343,6 +364,8 @@ always @(posedge i_clk or posedge i_rst) begin
         finish <= finish_nxt;
         start_position <= start_position_nxt;
         end_position <= end_position_nxt;
+        left_bound_init <= left_bound_init_nxt;
+        start_on_bound <= start_on_bound_nxt;
 	end
 end
 endmodule
