@@ -40,7 +40,7 @@ PE_array_64 PE0(
 );
 
 task run_new_stripe;
-    input k; // num of stripe
+    input [9:0] k; // num of stripe
 
     i_start = 1'b0;
 
@@ -49,7 +49,7 @@ task run_new_stripe;
     end
     #(`CYCLE*1);
 
-    $display("----------stripe ", k, "----------");
+    $display("----------stripe", k, "----------");
     $display("start position:", start_position_reg);
     for (j = start_position_reg; j < 1024; j=j+1) begin
         if (stripe_end == 1'b1) begin
