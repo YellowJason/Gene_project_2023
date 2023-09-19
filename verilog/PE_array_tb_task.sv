@@ -51,16 +51,17 @@ task run_new_stripe;
 
     $display("----------stripe", k, "----------");
     $display("start position:", start_position_reg);
-    for (j = start_position_reg; j < 1024; j=j+1) begin
+    // j may > 1024 when state == EVAL
+    for (j = start_position_reg; j < 2000; j=j+1) begin
         if (stripe_end == 1'b1) begin
             start_position_reg <= start_position_reg + start_position;
-            $display("end position:", end_position+start_position_reg);
+            $display("end position:", {1'b0, end_position}+{1'b0, start_position_reg});
             $display("max score:", max);
             break;
         end
         
-        i_start = 1'b1;
-        i_i_A = i_A[j];
+        i_start = (j < 1024) ? 1'b1 : 1'b0;
+        i_i_A = (j < 1024) ? i_A[j] : 2'b0;
         #(`CYCLE*0.1);
         @(negedge clk);
     end
@@ -83,7 +84,7 @@ initial begin
     #(`CYCLE*2);
     rst = 1'b0;
 
-    for (k=0; k<10; k=k+1) begin
+    for (k=0; k<16; k=k+1) begin
         run_new_stripe(k);
     end
 

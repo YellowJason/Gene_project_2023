@@ -210,14 +210,15 @@ always @(*) begin
         end
         CALC: begin
             PE_enable_nxt[0] = i_start;
+            counter_nxt = counter + 1;
             for (i=1; i<64; i=i+1) begin
                 PE_enable_nxt[i] = PE_enable[i-1];
             end
             if ((PE_enable[63] == 1) & (PE_enable[62] == 0)) begin
                 state_nxt = EVAL;
+                end_position_nxt = counter;
                 counter_nxt = 10'b0;
             end
-            counter_nxt = counter + 1;
             A_array_nxt[0] = i_A;
             v_score_array_nxt[0] = PE_enable[0] ? v_score_out[0] : v_score_array[0];
             v_score_dia_array_nxt[0] = PE_enable[1] ? v_score_array[0] : v_score_dia_array[0];
