@@ -35,9 +35,9 @@ reg [1:0] B_array[63:0], B_array_nxt[63:0];
 // reg [13:0] i_score_metrix[0:63][0:399], i_score_metrix_nxt[0:63][0:399];
 // reg [13:0] d_score_metrix[0:63][0:399], d_score_metrix_nxt[0:63][0:399];
 
-reg [1:0] v_dir_metrix[0:63][0:399], v_dir_metrix_nxt[0:63][0:399];
-reg       i_dir_metrix[0:63][0:399], i_dir_metrix_nxt[0:63][0:399];
-reg       d_dir_metrix[0:63][0:399], d_dir_metrix_nxt[0:63][0:399];
+reg [1:0] v_dir_metrix[0:mem_length-1][0:63], v_dir_metrix_nxt[0:mem_length-1][0:63];
+reg       i_dir_metrix[0:mem_length-1][0:63], i_dir_metrix_nxt[0:mem_length-1][0:63];
+reg       d_dir_metrix[0:mem_length-1][0:63], d_dir_metrix_nxt[0:mem_length-1][0:63];
 
 // save score or not
 reg [63:0] PE_enable, PE_enable_nxt;
@@ -162,6 +162,11 @@ always @(*) begin
         min_array_nxt[j] = min_array[j];
         score_last_PE_nxt[j] = score_last_PE[j];
         d_last_PE_nxt[j] = d_last_PE[j];
+        for (i=0; i<64; i=i+1) begin
+            v_dir_metrix_nxt[j][i] = v_dir_metrix[j][i];
+            i_dir_metrix_nxt[j][i] = i_dir_metrix[j][i];
+            d_dir_metrix_nxt[j][i] = d_dir_metrix[j][i];
+        end
     end
     local_max_nxt = local_max;
     // PE enable is a shift register
@@ -246,8 +251,15 @@ always @(*) begin
                 top_score_first_PE_nxt = score_last_PE[counter+start_position_old+1];
                 top_d_first_PE_nxt = d_last_PE[counter+start_position_old+1];
             end
+            // Save direction
+            for (i=0; i<64; i=i+1) begin
+                v_dir_metrix_nxt[counter][i] = PE_enable[i] ? v_dir_nxt[i] : 2'd3;
+                i_dir_metrix_nxt[counter][i] = PE_enable[i] ? i_dir_nxt[i] : 1'b0;
+                d_dir_metrix_nxt[counter][i] = PE_enable[i] ? d_dir_nxt[i] : 1'b0;
+            end
             // min & max will delay one cycle
             if (counter != 0) begin
+                // Save min score after 64 cycles
                 if (counter[9:6] != 4'b0) begin
                     min_array_nxt[counter-64] = min_in_PEs; // minimum of 64'th step should be put in first position
                     // start position for next stripe
@@ -320,11 +332,6 @@ always @(posedge i_clk or posedge i_rst) begin
             v_dir[i] <= 2'b0;
             i_dir[i] <= 1'b0;
             d_dir[i] <= 1'b0;
-            // for (j=0; j<200; j=j+1) begin
-            //     v_score_metrix[i][j] <= 14'b11000000000000;
-            //     i_score_metrix[i][j] <= 14'b11000000000000;
-            //     d_score_metrix[i][j] <= 14'b11000000000000;
-            // end
         end
         dia_score_first_PE <= 14'd0;
         top_score_first_PE <= g_o_penalty;
@@ -333,6 +340,11 @@ always @(posedge i_clk or posedge i_rst) begin
             min_array[j] <= 14'b0;
             score_last_PE[j] <= $signed(g_o_penalty) + $signed(g_e_penalty) * $signed(j);
             d_last_PE[j] <= 14'b11000000000000;
+            for (i=0; i<64; i=i+1) begin
+                v_dir_metrix[j][i] <= 2'b0;
+                i_dir_metrix[j][i] <= 1'b0;
+                d_dir_metrix[j][i] <= 1'b0;
+            end
         end
         local_max <= 14'b11000000000000;
         finish <= 1'b0;
@@ -357,11 +369,6 @@ always @(posedge i_clk or posedge i_rst) begin
             v_dir[i] <= v_dir_nxt[i];
             i_dir[i] <= i_dir_nxt[i];
             d_dir[i] <= d_dir_nxt[i];
-            // for (j=0; j<200; j=j+1) begin
-            //     v_score_metrix[i][j] <= v_score_metrix_nxt[i][j];
-            //     i_score_metrix[i][j] <= i_score_metrix_nxt[i][j];
-            //     d_score_metrix[i][j] <= d_score_metrix_nxt[i][j];
-            // end
         end
         dia_score_first_PE <= dia_score_first_PE_nxt;
         top_score_first_PE <= top_score_first_PE_nxt;
@@ -370,6 +377,11 @@ always @(posedge i_clk or posedge i_rst) begin
             min_array[j] <= min_array_nxt[j];
             score_last_PE[j] <= score_last_PE_nxt[j];
             d_last_PE[j] <= d_last_PE_nxt[j];
+            for (i=0; i<64; i=i+1) begin
+                v_dir_metrix[j][i] <= v_dir_metrix_nxt[j][i];
+                i_dir_metrix[j][i] <= i_dir_metrix_nxt[j][i];
+                d_dir_metrix[j][i] <= d_dir_metrix_nxt[j][i];
+            end
         end
         local_max <= local_max_nxt;
         finish <= finish_nxt;
