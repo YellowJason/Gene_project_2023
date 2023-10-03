@@ -22,9 +22,11 @@ reg [1:0] state, state_nxt;
 parameter IDLE = 2'd0;
 parameter CALC = 2'd1;
 parameter EVAL = 2'd2;
+parameter TRAC = 2'd3;
 
 // counter
 reg [9:0] counter, counter_nxt;
+reg [3:0] stripe_count, stripe_count_nxt;
 
 // 2 input sequence
 reg [1:0] A_array[63:0], A_array_nxt[63:0];
@@ -156,6 +158,7 @@ always @(*) begin
     // keep reg value
     state_nxt = state;
     counter_nxt = counter;
+    stripe_count_nxt = stripe_count;
     for (i=0; i<64; i=i+1) begin
         A_array_nxt[i] = A_array[i];
         B_array_nxt[i] = B_array[i];
@@ -304,13 +307,44 @@ always @(*) begin
             end
         end
         EVAL: begin // find next start column
-            state_nxt = IDLE;
+            // Trace back
+            if (stripe_count == 4'd15) begin
+                state_nxt = TRAC;
+            end
+            else begin
+                state_nxt = IDLE;
+            end
             finish_nxt = 1'b1;
+            stripe_count_nxt = stripe_count + 1;
             if (start_position != 0) begin
                 start_on_bound_nxt = 1'b0;
                 dia_score_first_PE_nxt = score_last_PE[start_position-1];
             end
             start_position_old_nxt = start_position;
+        end
+        TRAC: begin
+            if ((x_max == 0) | (y_max == 0)) begin
+                state_nxt = IDLE;
+            end
+            else begin
+                state_nxt = state;
+                if (v_dir_metrix[y_max][x_max] == 2'd0) begin
+                    y_max_nxt = y_max - 1;
+                    x_max_nxt = x_max - 1;
+                end
+                else if (v_dir_metrix[y_max][x_max] == 2'd1) begin
+                    y_max_nxt = y_max - 1;
+                    x_max_nxt = x_max;
+                end
+                else if (v_dir_metrix[y_max][x_max] == 2'd2) begin
+                    y_max_nxt = y_max;
+                    x_max_nxt = x_max - 1;
+                end
+                else begin
+                    y_max_nxt = y_max - 1;
+                    x_max_nxt = x_max - 1;
+                end
+            end
         end
     endcase
 end
@@ -338,6 +372,7 @@ always @(posedge i_clk or posedge i_rst) begin
 	if (i_rst) begin
         state <= IDLE;
         counter <= 10'b0;
+        stripe_count<= 4'b0;
         PE_enable <= 64'b0;
         for (i=0; i<64; i=i+1) begin
             A_array[i] <= 2'b0;
@@ -377,6 +412,7 @@ always @(posedge i_clk or posedge i_rst) begin
 	else begin
         state <= state_nxt;
         counter <= counter_nxt;
+        stripe_count <= stripe_count_nxt;
         PE_enable <= PE_enable_nxt;
         for (i=0; i<64; i=i+1) begin
             A_array[i] <= A_array_nxt[i];

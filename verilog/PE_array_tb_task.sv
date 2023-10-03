@@ -88,7 +88,7 @@ initial begin
         run_new_stripe(k);
     end
 
-    #(`CYCLE*20);
+    #(`CYCLE*100);
     $finish;
 end
 

@@ -7,7 +7,7 @@ set compile_fix_multiple_port_nets "TRUE"
 
 set DESIGN "PE_array_64"
 set CLOCK "i_clk"
-set CLOCK_PERIOD 10.0
+set CLOCK_PERIOD 1.0
 
 sh rm -rf Netlist
 sh rm -rf Report
