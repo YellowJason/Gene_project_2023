@@ -77,6 +77,7 @@ reg [13:0] d_last_PE[0:mem_length-1], d_last_PE_nxt[0:mem_length-1];
 
 // min & max of PEs
 wire [13:0] max_in_PEs, min_in_PEs;
+wire [5:0] max_y_temp;
 reg [14*64-1:0] v_score_merge;
 always @(*) begin
     for (i=0; i<64; i=i+1) begin
@@ -86,7 +87,8 @@ end
 max_n_min comparator(
     .v_score_merge(v_score_merge),
     .o_max(max_in_PEs),
-    .o_min(min_in_PEs)
+    .o_min(min_in_PEs),
+    .o_x(max_y_temp)
 );
 
 // end signal (all score < max-threshold)
@@ -104,6 +106,10 @@ reg [13:0] local_max, local_max_nxt; // max score in the stripe
 wire [13:0] stop_threshold;
 assign stop_threshold = local_max - 14'd250;
 assign o_max_score_stripe = local_max;
+
+// max position
+reg [9:0] x_max, x_max_nxt;
+reg [5:0] y_max, y_max_nxt;
 
 // 64 PEs
 genvar gv;
@@ -182,7 +188,8 @@ always @(*) begin
     end_position_nxt = end_position;
     left_bound_init_nxt = left_bound_init;
     start_on_bound_nxt = start_on_bound;
-    
+    x_max_nxt = x_max;
+    y_max_nxt = y_max;
     case (state)
         IDLE: begin
             if (i_start) begin
@@ -268,7 +275,17 @@ always @(*) begin
                     end
                 end
                 // if stop
-                local_max_nxt = ($signed(local_max) > $signed(max_in_PEs)) ? local_max : max_in_PEs;
+                if ($signed(local_max) > $signed(max_in_PEs)) begin
+                    local_max_nxt = local_max;
+                    x_max_nxt = x_max;
+                    y_max_nxt = y_max;
+                end
+                else begin
+                    local_max_nxt = max_in_PEs;
+                    x_max_nxt = counter;
+                    y_max_nxt = max_y_temp;
+                end
+
                 if ($signed(max_in_PEs) < $signed(stop_threshold)) begin
                     state_nxt = EVAL;
                     counter_nxt = 10'b0;
@@ -353,6 +370,8 @@ always @(posedge i_clk or posedge i_rst) begin
         end_position <= 10'b0;
         left_bound_init <= $signed(g_o_penalty);
         start_on_bound <= 1'b1;
+        x_max <= 10'b0;
+        y_max <= 6'b0;
 	end
 	// clock edge
 	else begin
@@ -390,6 +409,8 @@ always @(posedge i_clk or posedge i_rst) begin
         end_position <= end_position_nxt;
         left_bound_init <= left_bound_init_nxt;
         start_on_bound <= start_on_bound_nxt;
+        x_max <= x_max_nxt;
+        y_max <= y_max_nxt;
 	end
 end
 endmodule
@@ -397,7 +418,8 @@ endmodule
 module max_n_min(
     input [14*64-1:0] v_score_merge,
     output [13:0] o_max,
-    output [13:0] o_min
+    output [13:0] o_min,
+    output [5:0]  o_x
 );
 
 integer i;
@@ -412,50 +434,61 @@ end
 // layer 1, 32 comparators
 reg [13:0] min_temp_l1 [0:31];
 reg [13:0] max_temp_l1 [0:31];
+reg [5:0] x_l1 [0:31];
 always @(*) begin
     for (i=0; i<32; i=i+1) begin
         min_temp_l1[i] = ($signed(v_score[2*i]) > $signed(v_score[2*i+1])) ? v_score[2*i+1] : v_score[2*i];
         max_temp_l1[i] = ($signed(v_score[2*i]) > $signed(v_score[2*i+1])) ? v_score[2*i] : v_score[2*i+1];
+        x_l1[i] = ($signed(v_score[2*i]) > $signed(v_score[2*i+1])) ? (2*i) : (2*i+1);
     end
 end
 // layer 2, 16 comparators
 reg [13:0] min_temp_l2 [0:15];
 reg [13:0] max_temp_l2 [0:15];
+reg [5:0] x_l2 [0:15];
 always @(*) begin
     for (i=0; i<16; i=i+1) begin
         min_temp_l2[i] = ($signed(min_temp_l1[2*i]) < $signed(min_temp_l1[2*i+1])) ? min_temp_l1[2*i] : min_temp_l1[2*i+1];
         max_temp_l2[i] = ($signed(max_temp_l1[2*i]) > $signed(max_temp_l1[2*i+1])) ? max_temp_l1[2*i] : max_temp_l1[2*i+1];
+        x_l2[i] = ($signed(max_temp_l1[2*i]) > $signed(max_temp_l1[2*i+1])) ? x_l1[2*i] : x_l1[2*i+1];
     end
 end
 // layer 3, 8 comparators
 reg [13:0] min_temp_l3 [0:7];
 reg [13:0] max_temp_l3 [0:7];
+reg [5:0] x_l3 [0:7];
 always @(*) begin
     for (i=0; i<8; i=i+1) begin
         min_temp_l3[i] = ($signed(min_temp_l2[2*i]) < $signed(min_temp_l2[2*i+1])) ? min_temp_l2[2*i] : min_temp_l2[2*i+1];
         max_temp_l3[i] = ($signed(max_temp_l2[2*i]) > $signed(max_temp_l2[2*i+1])) ? max_temp_l2[2*i] : max_temp_l2[2*i+1];
+        x_l3[i] = ($signed(max_temp_l2[2*i]) > $signed(max_temp_l2[2*i+1])) ? x_l2[2*i] : x_l2[2*i+1];
     end
 end
 // layer 4, 4 comparators
 reg [13:0] min_temp_l4 [0:3];
 reg [13:0] max_temp_l4 [0:3];
+reg [5:0] x_l4 [0:3];
 always @(*) begin
     for (i=0; i<4; i=i+1) begin
         min_temp_l4[i] = ($signed(min_temp_l3[2*i]) < $signed(min_temp_l3[2*i+1])) ? min_temp_l3[2*i] : min_temp_l3[2*i+1];
         max_temp_l4[i] = ($signed(max_temp_l3[2*i]) > $signed(max_temp_l3[2*i+1])) ? max_temp_l3[2*i] : max_temp_l3[2*i+1];
+        x_l4[i] = ($signed(max_temp_l3[2*i]) > $signed(max_temp_l3[2*i+1])) ? x_l3[2*i] : x_l3[2*i+1];
     end
 end
 // layer 5, 2 comparators
 reg [13:0] min_temp_l5 [0:1];
 reg [13:0] max_temp_l5 [0:1];
+reg [5:0] x_l5 [0:1];
 always @(*) begin
     for (i=0; i<2; i=i+1) begin
         min_temp_l5[i] = ($signed(min_temp_l4[2*i]) < $signed(min_temp_l4[2*i+1])) ? min_temp_l4[2*i] : min_temp_l4[2*i+1];
         max_temp_l5[i] = ($signed(max_temp_l4[2*i]) > $signed(max_temp_l4[2*i+1])) ? max_temp_l4[2*i] : max_temp_l4[2*i+1];
+        x_l5[i] = ($signed(max_temp_l4[2*i]) > $signed(max_temp_l4[2*i+1])) ? x_l4[2*i] : x_l4[2*i+1];
     end
 end
 // layer 6, final output
 assign o_min = ($signed(min_temp_l5[0]) < $signed(min_temp_l5[1])) ? min_temp_l5[0] : min_temp_l5[1];
 assign o_max = ($signed(max_temp_l5[0]) > $signed(max_temp_l5[1])) ? max_temp_l5[0] : max_temp_l5[1];
+assign o_x = ($signed(max_temp_l5[0]) > $signed(max_temp_l5[1])) ? x_l5[0] : x_l5[1];
 
 endmodule
