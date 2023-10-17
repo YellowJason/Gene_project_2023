@@ -8,7 +8,8 @@ module PE_array_64 (
     output o_stripe_end,
     output [9:0] o_start_position,
     output [9:0] o_end_position,
-    output [13:0] o_max_score_stripe
+    output [13:0] o_max_score_stripe,
+    output [1:0] o_trace_dir
 );
 
 integer i, j, k;
@@ -116,6 +117,15 @@ assign o_max_score_stripe = local_max;
 reg [9:0] x_max, x_max_nxt;
 reg [5:0] y_max, y_max_nxt;
 
+// trace result
+reg [1:0] trace_dir, trace_dir_nxt;
+assign o_trace_dir = v_dir_metrix[stripe_count][x_max][y_max];
+
+// trace gap open, 0:no, 1:trace D (top), 2:trace I (left)
+reg [1:0] trace_open, trace_open_nxt;
+wire open_d = d_dir_metrix[stripe_count][x_max][y_max];
+wire open_i = i_dir_metrix[stripe_count][x_max][y_max];
+
 // 64 PEs
 genvar gv;
 generate
@@ -201,6 +211,8 @@ always @(*) begin
     start_on_bound_nxt = start_on_bound;
     x_max_nxt = x_max;
     y_max_nxt = y_max;
+    trace_dir_nxt = trace_dir;
+    trace_open_nxt = trace_open;
     case (state)
         IDLE: begin
             if (i_start) begin
@@ -250,13 +262,13 @@ always @(*) begin
             end
             A_array_nxt[0] = i_A;
             v_score_array_nxt[0] = PE_enable[0] ? v_score_out[0] : v_score_array[0];
-            v_score_dia_array_nxt[0] = PE_enable[1] ? v_score_array[0] : v_score_dia_array[0];
+            v_score_dia_array_nxt[0] = PE_enable[0] ? v_score_array[0] : v_score_dia_array[0];
             i_score_lef_array_nxt[0] = PE_enable[0] ? i_score_out[0] : i_score_lef_array[0];
             d_score_top_array_nxt[0] = PE_enable[0] ? d_score_out[0] : 14'b11000000000000;
             for (i=1; i<64; i=i+1) begin
                 A_array_nxt[i] = A_array[i-1];
                 v_score_array_nxt[i] = PE_enable[i] ? v_score_out[i] : v_score_array[i];
-                v_score_dia_array_nxt[i] = PE_enable[i+1] ? v_score_array[i] : v_score_dia_array[i];
+                v_score_dia_array_nxt[i] = v_score_array[i];
                 i_score_lef_array_nxt[i] = PE_enable[i] ? i_score_out[i] : i_score_lef_array[i];
                 d_score_top_array_nxt[i] = PE_enable[i] ? d_score_out[i] : d_score_top_array[i];
             end
@@ -271,7 +283,7 @@ always @(*) begin
             end
             // Save direction
             for (i=0; i<64; i=i+1) begin
-                v_dir_metrix_nxt[stripe_count][counter][i] = PE_enable[i] ? v_dir_nxt[i] : 2'd3;
+                v_dir_metrix_nxt[stripe_count][counter][i] = PE_enable[i] ? v_dir_nxt[i] : 2'd0;
                 i_dir_metrix_nxt[stripe_count][counter][i] = PE_enable[i] ? i_dir_nxt[i] : 1'b0;
                 d_dir_metrix_nxt[stripe_count][counter][i] = PE_enable[i] ? d_dir_nxt[i] : 1'b0;
             end
@@ -319,12 +331,13 @@ always @(*) begin
             // Trace back
             if (stripe_count == 4'd15) begin
                 state_nxt = TRAC;
+                stripe_count_nxt = stripe_count;
             end
             else begin
                 state_nxt = IDLE;
+                stripe_count_nxt = stripe_count + 1;
             end
             finish_nxt = 1'b1;
-            stripe_count_nxt = stripe_count + 1;
             if (start_position != 0) begin
                 start_on_bound_nxt = 1'b0;
                 dia_score_first_PE_nxt = score_last_PE[start_position-1];
@@ -332,40 +345,131 @@ always @(*) begin
             start_position_old_nxt = start_position;
         end
         TRAC: begin
+            trace_dir_nxt = v_dir_metrix[stripe_count][x_max][y_max];
             // reach bigining
             if (((x_max == 0) | (y_max == 0)) & (stripe_count == 0)) begin
                 state_nxt = IDLE;
             end
             // change stripe
             else if ((y_max == 0)) begin
-                if (v_dir_metrix[stripe_count][y_max][x_max] == 2'd0) begin
-                    stripe_count_nxt = stripe_count - 1;
-                    y_max_nxt = 6'd63;
-                    x_max_nxt = x_max + start_shift[stripe_count-1] - 1;
+                // trace on T metrix
+                if (trace_open == 2'd0) begin
+                    case (v_dir_metrix[stripe_count][x_max][y_max])
+                        2'd1: begin // dia
+                            stripe_count_nxt = stripe_count - 1;
+                            y_max_nxt = 6'd63;
+                            x_max_nxt = x_max + start_shift[stripe_count-1] - 2'd2;
+                            trace_open_nxt = 2'd0;
+                        end
+                        2'd2: begin // top
+                            stripe_count_nxt = stripe_count - 1;
+                            y_max_nxt = 6'd63;
+                            x_max_nxt = x_max + start_shift[stripe_count-1] - 1'b1;
+                            if (d_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                                trace_open_nxt = 2'd1;
+                            end
+                            else begin
+                                trace_open_nxt = 2'd0;
+                            end
+                        end 
+                        2'd3: begin // left
+                            y_max_nxt = y_max;
+                            x_max_nxt = x_max - 1'b1;
+                            trace_open_nxt = 2'd2;
+                            if (i_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                                trace_open_nxt = 2'd2;
+                            end
+                            else begin
+                                trace_open_nxt = 2'd0;
+                            end
+                        end
+                    endcase
                 end
-                else if (v_dir_metrix[stripe_count][y_max][x_max] == 2'd1) begin
-                    stripe_count_nxt = stripe_count - 1;
-                    y_max_nxt = 6'd63;
-                    x_max_nxt = x_max + start_shift[stripe_count-1];
+                else if (trace_open == 2'd1) begin
+                    trace_dir_nxt = 2'd2;
+                    if (d_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                        y_max_nxt = 6'd63;
+                        x_max_nxt = x_max + start_shift[stripe_count-1] - 1'b1;
+                        trace_open_nxt = 2'd1;
+                    end
+                    else begin
+                        y_max_nxt = 6'd63;
+                        x_max_nxt = x_max + start_shift[stripe_count-1] - 1'b1;
+                        trace_open_nxt = 2'd0;
+                    end
                 end
-                else if (v_dir_metrix[stripe_count][y_max][x_max] == 2'd2) begin
-                    y_max_nxt = y_max;
-                    x_max_nxt = x_max - 1;
+                else if (trace_open == 2'd2) begin
+                    trace_dir_nxt = 2'd3;
+                    if (i_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                        y_max_nxt = y_max;
+                        x_max_nxt = x_max - 1'b1;
+                        trace_open_nxt = 2'd2;
+                    end
+                    else begin
+                        y_max_nxt = y_max;
+                        x_max_nxt = x_max - 1'b1;
+                        trace_open_nxt = 2'd0;
+                    end
                 end
             end
+            // regular trace
             else begin
                 state_nxt = state;
-                if (v_dir_metrix[stripe_count][y_max][x_max] == 2'd0) begin
-                    y_max_nxt = y_max - 1;
-                    x_max_nxt = x_max - 1;
+                // trace on T metrix
+                if (trace_open == 2'd0) begin
+                    case (v_dir_metrix[stripe_count][x_max][y_max])
+                        2'd1: begin // dia
+                            y_max_nxt = y_max - 1'b1;
+                            x_max_nxt = x_max - 2'd2;
+                            trace_open_nxt = 2'd0;
+                        end
+                        2'd2: begin // top
+                            y_max_nxt = y_max - 1'b1;
+                            x_max_nxt = x_max - 1'b1;
+                            if (d_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                                trace_open_nxt = 2'd1;
+                            end
+                            else begin
+                                trace_open_nxt = 2'd0;
+                            end
+                        end 
+                        2'd3: begin // left
+                            y_max_nxt = y_max;
+                            x_max_nxt = x_max - 1'b1;
+                            if (i_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                                trace_open_nxt = 2'd2;
+                            end
+                            else begin
+                                trace_open_nxt = 2'd0;
+                            end
+                        end
+                    endcase
                 end
-                else if (v_dir_metrix[stripe_count][y_max][x_max] == 2'd1) begin
-                    y_max_nxt = y_max - 1;
-                    x_max_nxt = x_max;
+                else if (trace_open == 2'd1) begin
+                    trace_dir_nxt = 2'd2;
+                    if (d_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                        y_max_nxt = y_max - 1'b1;
+                        x_max_nxt = x_max - 1'b1;
+                        trace_open_nxt = 2'd1;
+                    end
+                    else begin
+                        y_max_nxt = y_max - 1'b1;
+                        x_max_nxt = x_max - 1'b1;
+                        trace_open_nxt = 2'd0;
+                    end
                 end
-                else if (v_dir_metrix[stripe_count][y_max][x_max] == 2'd2) begin
-                    y_max_nxt = y_max;
-                    x_max_nxt = x_max - 1;
+                else if (trace_open == 2'd2) begin
+                    trace_dir_nxt = 2'd3;
+                    if (i_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                        y_max_nxt = y_max;
+                        x_max_nxt = x_max - 1'b1;
+                        trace_open_nxt = 2'd2;
+                    end
+                    else begin
+                        y_max_nxt = y_max;
+                        x_max_nxt = x_max - 1'b1;
+                        trace_open_nxt = 2'd0;
+                    end
                 end
             end
         end
@@ -435,6 +539,8 @@ always @(posedge i_clk or posedge i_rst) begin
         start_on_bound <= 1'b1;
         x_max <= 10'b0;
         y_max <= 6'b0;
+        trace_dir <= 2'b0;
+        trace_open <= 2'b0;
 	end
 	// clock edge
 	else begin
@@ -480,6 +586,8 @@ always @(posedge i_clk or posedge i_rst) begin
         start_on_bound <= start_on_bound_nxt;
         x_max <= x_max_nxt;
         y_max <= y_max_nxt;
+        trace_dir <= trace_dir_nxt;
+        trace_open <= trace_open_nxt;
 	end
 end
 endmodule

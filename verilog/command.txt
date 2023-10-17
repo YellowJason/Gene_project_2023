@@ -1,6 +1,6 @@
 vcs PE_tb.v ./PE.v -full64 -R -debug_access+all +v2k +vcs+fsdbon +fsdb+mda +fsdbfile+PE.fsdb
 vcs -sverilog PE_array_tb.sv ./PE_array_64.v ./PE.v -full64 -R -debug_access+all +v2k +vcs+fsdbon +fsdb+mda +fsdbfile+PE_array.fsdb
-vcs -sverilog PE_array_tb_task.sv ./PE_array_64.v ./PE.v -full64 -R -debug_access+all +v2k +vcs+fsdbon +fsdb+mda +fsdbfile+PE_array.fsdb
+vcs -sverilog PE_array_tb_task.sv ./PE_array_64.v ./PE.v -full64 -R -debug_access+all +v2k +vcs+fsdbon +fsdb+mda +fsdbfile+PE_array.fsdb -fgp
 vcs -sverilog PE_array_tb.sv ./PE_array_64_pipe.v ./PE.v -full64 -R -debug_access+all +v2k +vcs+fsdbon +fsdb+mda +fsdbfile+PE_array_pipe.fsdb
 
 // gate level
