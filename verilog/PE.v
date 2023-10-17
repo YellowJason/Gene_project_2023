@@ -33,21 +33,21 @@ assign V_temp = $signed(i_v_diagonal_score) + $signed(match_score);
 wire [width-1:0] I_temp_1, I_temp_2;
 assign I_temp_1 = $signed(i_v_left_score) + $signed(g_o_penalty);
 assign I_temp_2 = $signed(i_i_left_score) + $signed(g_e_penalty);
-assign o_i_score = ($signed(I_temp_1) > $signed(I_temp_2)) ? I_temp_1 : I_temp_2;
-assign o_i_direct = ($signed(I_temp_1) > $signed(I_temp_2)) ? 1'b1 : 1'b0;
+assign o_i_score = ($signed(I_temp_1) >= $signed(I_temp_2)) ? I_temp_1 : I_temp_2;
+assign o_i_direct = ($signed(I_temp_1) >= $signed(I_temp_2)) ? 1'b1 : 1'b0;
 
 // Score from Deletion (extra bit for overflow)
 wire [width-1:0] D_temp_1, D_temp_2;
 assign D_temp_1 = $signed(i_v_top_score) + $signed(g_o_penalty);
 assign D_temp_2 = $signed(i_d_top_score) + $signed(g_e_penalty);
-assign o_d_score = ($signed(D_temp_1) > $signed(D_temp_2)) ? D_temp_1 : D_temp_2;
-assign o_d_direct = ($signed(D_temp_1) > $signed(D_temp_2)) ? 1'b1 : 1'b0;
+assign o_d_score = ($signed(D_temp_1) >= $signed(D_temp_2)) ? D_temp_1 : D_temp_2;
+assign o_d_direct = ($signed(D_temp_1) >= $signed(D_temp_2)) ? 1'b1 : 1'b0;
 
 // final score
 assign o_v_score = (($signed(V_temp) >= $signed(o_i_score)) & ($signed(V_temp) >= $signed(o_d_score))) ? V_temp :
-                    ($signed(o_i_score) >= $signed(o_d_score)) ? o_i_score : o_d_score;
-assign o_v_direct = (($signed(V_temp) >= $signed(o_i_score)) & ($signed(V_temp) >= $signed(o_d_score))) ? 2'd0 :
-                    ($signed(o_i_score) >= $signed(o_d_score)) ? 2'd2 : 2'd1;
+                    ($signed(o_d_score) >= $signed(o_i_score)) ? o_d_score : o_i_score;
+assign o_v_direct = (($signed(V_temp) >= $signed(o_i_score)) & ($signed(V_temp) >= $signed(o_d_score))) ? 2'd1 :
+                    ($signed(o_d_score) >= $signed(o_i_score)) ? 2'd2 : 2'd3;
 
 endmodule
 
