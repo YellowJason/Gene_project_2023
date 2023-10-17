@@ -36,11 +36,7 @@ reg [9:0] start_shift[0:15], start_shift_nxt[0:15];
 reg [1:0] A_array[63:0], A_array_nxt[63:0];
 reg [1:0] B_array[63:0], B_array_nxt[63:0];
 
-// score metrix // need modify
-// reg [13:0] v_score_metrix[0:63][0:399], v_score_metrix_nxt[0:63][0:399];
-// reg [13:0] i_score_metrix[0:63][0:399], i_score_metrix_nxt[0:63][0:399];
-// reg [13:0] d_score_metrix[0:63][0:399], d_score_metrix_nxt[0:63][0:399];
-
+// direction metrix, 16 stripes
 reg [1:0] v_dir_metrix[0:15][0:mem_length-1][0:63], v_dir_metrix_nxt[0:15][0:mem_length-1][0:63];
 reg       i_dir_metrix[0:15][0:mem_length-1][0:63], i_dir_metrix_nxt[0:15][0:mem_length-1][0:63];
 reg       d_dir_metrix[0:15][0:mem_length-1][0:63], d_dir_metrix_nxt[0:15][0:mem_length-1][0:63];
@@ -476,24 +472,6 @@ always @(*) begin
         end
     endcase
 end
-
-// store scores into matrix
-// always @(*) begin
-//     for (i=0; i<64; i=i+1) begin
-//         for (j=0; j<200; j=j+1) begin
-//             v_score_metrix_nxt[i][j] = v_score_metrix[i][j];
-//             i_score_metrix_nxt[i][j] = i_score_metrix[i][j];
-//             d_score_metrix_nxt[i][j] = d_score_metrix[i][j];
-//         end
-//     end
-//     if (state == CALC) begin
-//         for (i=0; i<64; i=i+1) begin
-//             v_score_metrix_nxt[i][counter-i] = PE_enable[i] ? v_score_out[i] : v_score_metrix[i][counter-i];
-//             i_score_metrix_nxt[i][counter-i] = PE_enable[i] ? i_score_out[i] : i_score_metrix[i][counter-i];
-//             d_score_metrix_nxt[i][counter-i] = PE_enable[i] ? d_score_out[i] : d_score_metrix[i][counter-i];
-//         end
-//     end
-// end
 
 always @(posedge i_clk or posedge i_rst) begin
 	// reset
