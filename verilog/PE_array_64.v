@@ -119,7 +119,8 @@ reg [5:0] y_max, y_max_nxt;
 
 // trace result
 reg [1:0] trace_dir, trace_dir_nxt;
-assign o_trace_dir = v_dir_metrix[stripe_count][x_max][y_max];
+assign o_trace_dir = trace_dir;
+// assign o_trace_dir = v_dir_metrix[stripe_count][x_max][y_max];
 
 // trace gap open, 0:no, 1:trace D (top), 2:trace I (left)
 reg [1:0] trace_open, trace_open_nxt;
@@ -305,7 +306,7 @@ always @(*) begin
                 end
                 else begin
                     local_max_nxt = max_in_PEs;
-                    x_max_nxt = counter;
+                    x_max_nxt = counter - 1;
                     y_max_nxt = max_y_temp;
                 end
 
