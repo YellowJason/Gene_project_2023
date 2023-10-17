@@ -11,7 +11,7 @@ module PE_array_64 (
     output [13:0] o_max_score_stripe
 );
 
-integer i, j;
+integer i, j, k;
 
 parameter g_o_penalty = -14'd12;
 parameter g_e_penalty = -14'd1;
@@ -28,6 +28,9 @@ parameter TRAC = 2'd3;
 reg [9:0] counter, counter_nxt;
 reg [3:0] stripe_count, stripe_count_nxt;
 
+// save start position shift of every stripe
+reg [9:0] start_shift[0:15], start_shift_nxt[0:15];
+
 // 2 input sequence
 reg [1:0] A_array[63:0], A_array_nxt[63:0];
 reg [1:0] B_array[63:0], B_array_nxt[63:0];
@@ -37,9 +40,9 @@ reg [1:0] B_array[63:0], B_array_nxt[63:0];
 // reg [13:0] i_score_metrix[0:63][0:399], i_score_metrix_nxt[0:63][0:399];
 // reg [13:0] d_score_metrix[0:63][0:399], d_score_metrix_nxt[0:63][0:399];
 
-reg [1:0] v_dir_metrix[0:mem_length-1][0:63], v_dir_metrix_nxt[0:mem_length-1][0:63];
-reg       i_dir_metrix[0:mem_length-1][0:63], i_dir_metrix_nxt[0:mem_length-1][0:63];
-reg       d_dir_metrix[0:mem_length-1][0:63], d_dir_metrix_nxt[0:mem_length-1][0:63];
+reg [1:0] v_dir_metrix[0:15][0:mem_length-1][0:63], v_dir_metrix_nxt[0:15][0:mem_length-1][0:63];
+reg       i_dir_metrix[0:15][0:mem_length-1][0:63], i_dir_metrix_nxt[0:15][0:mem_length-1][0:63];
+reg       d_dir_metrix[0:15][0:mem_length-1][0:63], d_dir_metrix_nxt[0:15][0:mem_length-1][0:63];
 
 // save score or not
 reg [63:0] PE_enable, PE_enable_nxt;
@@ -167,14 +170,19 @@ always @(*) begin
         i_score_lef_array_nxt[i] = i_score_lef_array[i];
         d_score_top_array_nxt[i] = d_score_top_array[i];
     end
+    for (i=0; i<16; i=i+1) begin
+        start_shift_nxt[i] = start_shift[i];
+    end
     for (j=0; j<mem_length; j=j+1) begin
         min_array_nxt[j] = min_array[j];
         score_last_PE_nxt[j] = score_last_PE[j];
         d_last_PE_nxt[j] = d_last_PE[j];
         for (i=0; i<64; i=i+1) begin
-            v_dir_metrix_nxt[j][i] = v_dir_metrix[j][i];
-            i_dir_metrix_nxt[j][i] = i_dir_metrix[j][i];
-            d_dir_metrix_nxt[j][i] = d_dir_metrix[j][i];
+            for (k=0 ;k<16 ; k=k+1) begin
+                v_dir_metrix_nxt[k][j][i] = v_dir_metrix[k][j][i];
+                i_dir_metrix_nxt[k][j][i] = i_dir_metrix[k][j][i];
+                d_dir_metrix_nxt[k][j][i] = d_dir_metrix[k][j][i];
+            end
         end
     end
     local_max_nxt = local_max;
@@ -263,9 +271,9 @@ always @(*) begin
             end
             // Save direction
             for (i=0; i<64; i=i+1) begin
-                v_dir_metrix_nxt[counter][i] = PE_enable[i] ? v_dir_nxt[i] : 2'd3;
-                i_dir_metrix_nxt[counter][i] = PE_enable[i] ? i_dir_nxt[i] : 1'b0;
-                d_dir_metrix_nxt[counter][i] = PE_enable[i] ? d_dir_nxt[i] : 1'b0;
+                v_dir_metrix_nxt[stripe_count][counter][i] = PE_enable[i] ? v_dir_nxt[i] : 2'd3;
+                i_dir_metrix_nxt[stripe_count][counter][i] = PE_enable[i] ? i_dir_nxt[i] : 1'b0;
+                d_dir_metrix_nxt[stripe_count][counter][i] = PE_enable[i] ? d_dir_nxt[i] : 1'b0;
             end
             // min & max will delay one cycle
             if (counter != 0) begin
@@ -292,6 +300,7 @@ always @(*) begin
                 if ($signed(max_in_PEs) < $signed(stop_threshold)) begin
                     state_nxt = EVAL;
                     counter_nxt = 10'b0;
+                    start_shift_nxt[stripe_count] = start_position;
                     dia_score_first_PE_nxt = 14'b11000000000000; // if next stripe start from left boundary
                     end_position_nxt = counter;
                 end
@@ -323,25 +332,39 @@ always @(*) begin
             start_position_old_nxt = start_position;
         end
         TRAC: begin
-            if ((x_max == 0) | (y_max == 0)) begin
+            // reach bigining
+            if (((x_max == 0) | (y_max == 0)) & (stripe_count == 0)) begin
                 state_nxt = IDLE;
             end
-            else begin
-                state_nxt = state;
-                if (v_dir_metrix[y_max][x_max] == 2'd0) begin
-                    y_max_nxt = y_max - 1;
-                    x_max_nxt = x_max - 1;
+            // change stripe
+            else if ((y_max == 0)) begin
+                if (v_dir_metrix[stripe_count][y_max][x_max] == 2'd0) begin
+                    stripe_count_nxt = stripe_count - 1;
+                    y_max_nxt = 6'd63;
+                    x_max_nxt = x_max + start_shift[stripe_count-1] - 1;
                 end
-                else if (v_dir_metrix[y_max][x_max] == 2'd1) begin
-                    y_max_nxt = y_max - 1;
-                    x_max_nxt = x_max;
+                else if (v_dir_metrix[stripe_count][y_max][x_max] == 2'd1) begin
+                    stripe_count_nxt = stripe_count - 1;
+                    y_max_nxt = 6'd63;
+                    x_max_nxt = x_max + start_shift[stripe_count-1];
                 end
-                else if (v_dir_metrix[y_max][x_max] == 2'd2) begin
+                else if (v_dir_metrix[stripe_count][y_max][x_max] == 2'd2) begin
                     y_max_nxt = y_max;
                     x_max_nxt = x_max - 1;
                 end
-                else begin
+            end
+            else begin
+                state_nxt = state;
+                if (v_dir_metrix[stripe_count][y_max][x_max] == 2'd0) begin
                     y_max_nxt = y_max - 1;
+                    x_max_nxt = x_max - 1;
+                end
+                else if (v_dir_metrix[stripe_count][y_max][x_max] == 2'd1) begin
+                    y_max_nxt = y_max - 1;
+                    x_max_nxt = x_max;
+                end
+                else if (v_dir_metrix[stripe_count][y_max][x_max] == 2'd2) begin
+                    y_max_nxt = y_max;
                     x_max_nxt = x_max - 1;
                 end
             end
@@ -385,6 +408,9 @@ always @(posedge i_clk or posedge i_rst) begin
             i_dir[i] <= 1'b0;
             d_dir[i] <= 1'b0;
         end
+        for (i=0; i<16; i=i+1) begin
+            start_shift[i] <= 10'b0;
+        end
         dia_score_first_PE <= 14'd0;
         top_score_first_PE <= g_o_penalty;
         top_d_first_PE <= 14'b11000000000000;
@@ -393,9 +419,11 @@ always @(posedge i_clk or posedge i_rst) begin
             score_last_PE[j] <= $signed(g_o_penalty) + $signed(g_e_penalty) * $signed(j);
             d_last_PE[j] <= 14'b11000000000000;
             for (i=0; i<64; i=i+1) begin
-                v_dir_metrix[j][i] <= 2'b0;
-                i_dir_metrix[j][i] <= 1'b0;
-                d_dir_metrix[j][i] <= 1'b0;
+                for (k=0 ;k<16 ; k=k+1) begin
+                    v_dir_metrix[k][j][i] <= 2'b0;
+                    i_dir_metrix[k][j][i] <= 1'b0;
+                    d_dir_metrix[k][j][i] <= 1'b0;
+                end
             end
         end
         local_max <= 14'b11000000000000;
@@ -425,6 +453,9 @@ always @(posedge i_clk or posedge i_rst) begin
             i_dir[i] <= i_dir_nxt[i];
             d_dir[i] <= d_dir_nxt[i];
         end
+        for (i=0; i<16; i=i+1) begin
+            start_shift[i] <= start_shift_nxt[i];
+        end
         dia_score_first_PE <= dia_score_first_PE_nxt;
         top_score_first_PE <= top_score_first_PE_nxt;
         top_d_first_PE <= top_d_first_PE_nxt;
@@ -433,9 +464,11 @@ always @(posedge i_clk or posedge i_rst) begin
             score_last_PE[j] <= score_last_PE_nxt[j];
             d_last_PE[j] <= d_last_PE_nxt[j];
             for (i=0; i<64; i=i+1) begin
-                v_dir_metrix[j][i] <= v_dir_metrix_nxt[j][i];
-                i_dir_metrix[j][i] <= i_dir_metrix_nxt[j][i];
-                d_dir_metrix[j][i] <= d_dir_metrix_nxt[j][i];
+                for (k=0 ;k<16 ; k=k+1) begin
+                    v_dir_metrix[k][j][i] <= v_dir_metrix_nxt[k][j][i];
+                    i_dir_metrix[k][j][i] <= i_dir_metrix_nxt[k][j][i];
+                    d_dir_metrix[k][j][i] <= d_dir_metrix_nxt[k][j][i];
+                end
             end
         end
         local_max <= local_max_nxt;
