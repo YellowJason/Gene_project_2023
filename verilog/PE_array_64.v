@@ -356,13 +356,13 @@ always @(*) begin
                         2'd1: begin // dia
                             stripe_count_nxt = stripe_count - 1;
                             y_max_nxt = 6'd63;
-                            x_max_nxt = x_max + start_shift[stripe_count-1] - 2'd2;
+                            x_max_nxt = x_max + start_shift[stripe_count-1] - 2'd2 + 7'd63;
                             trace_open_nxt = 2'd0;
                         end
                         2'd2: begin // top
                             stripe_count_nxt = stripe_count - 1;
                             y_max_nxt = 6'd63;
-                            x_max_nxt = x_max + start_shift[stripe_count-1] - 1'b1;
+                            x_max_nxt = x_max + start_shift[stripe_count-1] - 1'b1 + 7'd63;
                             if (d_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
                                 trace_open_nxt = 2'd1;
                             end
