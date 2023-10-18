@@ -18,6 +18,7 @@ logic [127:0] i_i_B;
 logic [13:0] max;
 logic [1:0] trace_dir;
 
+logic [8:0] error_count;
 // always @(*) begin
 //     for (i=0; i<64; i=i+1) begin
 //         i_i_B[2*i+:2] = i_B[i]; 
@@ -43,7 +44,7 @@ PE_array_64 PE0(
 );
 
 task run_new_stripe;
-    input [9:0] k; // num of stripe
+    input [5:0] k; // num of stripe
 
     i_start = 1'b0;
 
@@ -52,7 +53,7 @@ task run_new_stripe;
     end
     #(`CYCLE*1);
 
-    $display("----------stripe", k, "----------");
+    $display("----------stripe ", k, "----------");
     $display("start position:", start_position_reg);
     // j may > 1024 when state == EVAL
     for (j = start_position_reg; j < 2000; j=j+1) begin
@@ -72,6 +73,7 @@ endtask
 
 initial begin     
     $fsdbDumpfile("PE_array.fsdb");
+    $fsdbSuppress(PE0.v_dir_metrix, PE0.d_dir_metrix, PE0.i_dir_metrix);
     $fsdbDumpvars();
     $fsdbDumpMDA;
 
@@ -87,6 +89,7 @@ initial begin
     rst = 1'b1;
     #(`CYCLE*2);
     rst = 1'b0;
+    error_count = 9'b0;
 
     for (k=0; k<16; k=k+1) begin
         run_new_stripe(k);
@@ -96,17 +99,20 @@ initial begin
     @(negedge stripe_end);
     for (i=0; i<2048; i=i+1) begin
         @(negedge clk);
+        if (align_gold[i] === trace_dir) begin
+            $display(i[10:0], " Trace currect ! ", trace_dir);
+        end
+        else begin
+            $display(i[10:0], " Trace wrong ! Answer: ", align_gold[i], ", Yours: ", trace_dir);
+            error_count = error_count + 1;
+        end
         if (stripe_end) begin
             break;
         end
-        if (align_gold[i] === trace_dir) begin
-            $display("Trace currect ! ", trace_dir);
-        end
-        else begin
-            $display("Trace wrong ! Answer: ", align_gold[i], ", Yours: ", trace_dir);
-        end
         #(`CYCLE*0.5);
     end
+
+    $display("Total errors:", error_count);
 
     #(`CYCLE*10);
     $finish;
