@@ -257,6 +257,7 @@ always @(*) begin
             end
             if ((PE_enable[63] == 1) & (PE_enable[62] == 0)) begin
                 state_nxt = EVAL;
+                start_shift_nxt[stripe_count] = start_position;
                 end_position_nxt = counter;
                 counter_nxt = 10'b0;
             end
