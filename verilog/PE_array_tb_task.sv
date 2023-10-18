@@ -11,6 +11,7 @@ logic [9:0] start_position, start_position_reg, end_position;
 
 logic [1:0] i_A [0:1023], i_i_A;
 logic [1:0] i_B [0:1023];
+logic [1:0] align_gold [0:2047];
 
 logic [127:0] i_i_B;
 
@@ -76,6 +77,7 @@ initial begin
 
     $readmemh("./gene_2_array.txt", i_A);
     $readmemh("./gene_1_array.txt", i_B);
+    $readmemh("./align.txt", align_gold);
 
     clk = 1'b0;
     rst = 1'b0;
@@ -90,7 +92,23 @@ initial begin
         run_new_stripe(k);
     end
 
-    #(`CYCLE*100);
+    // Trace back
+    @(negedge stripe_end);
+    for (i=0; i<2048; i=i+1) begin
+        @(negedge clk);
+        if (stripe_end) begin
+            break;
+        end
+        if (align_gold[i] === trace_dir) begin
+            $display("Trace currect ! ", trace_dir);
+        end
+        else begin
+            $display("Trace wrong ! Answer: ", align_gold[i], ", Yours: ", trace_dir);
+        end
+        #(`CYCLE*0.5);
+    end
+
+    #(`CYCLE*10);
     $finish;
 end
 
