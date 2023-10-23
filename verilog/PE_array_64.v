@@ -16,7 +16,7 @@ integer i, j, k;
 
 parameter g_o_penalty = -14'd12;
 parameter g_e_penalty = -14'd1;
-parameter mem_length = 600;
+parameter mem_length = 512;
 
 // ***************for test***************
 reg [19:0] align_count;
