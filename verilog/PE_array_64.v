@@ -65,12 +65,12 @@ wire [13:0] i_score_out[0:63];
 wire [13:0] d_score_out[0:63];
 
 // directions
-reg [1:0] v_dir[0:63];
+reg  [1:0] v_dir[0:63];
 wire [1:0] v_dir_nxt[0:63];
-reg i_dir[0:63];
-wire i_dir_nxt[0:63];
-reg d_dir[0:63];
-wire d_dir_nxt[0:63];
+reg  [63:0] i_dir;
+wire [63:0] i_dir_nxt;
+reg  [63:0] d_dir;
+wire [63:0] d_dir_nxt;
 
 // dia & top score of first PE
 reg [13:0] dia_score_first_PE, dia_score_first_PE_nxt, top_score_first_PE, top_score_first_PE_nxt;
@@ -167,6 +167,34 @@ generate
     end
 endgenerate
 
+// Memory banks
+reg wen, wen_nxt;
+reg [63:0] v_0, v_1;
+wire [63:0] mem_out_v_0, mem_out_v_1, mem_out_i, mem_out_d;
+
+always @(*) begin
+    for (i=0; i<64; i=i+1) begin
+        {v_1[i], v_0[i]} = v_dir[i];
+    end
+end
+
+Mem_control mem_banks(
+    .i_clk(~i_clk),
+    .wen(wen),
+    .bank(stripe_count),
+    .address(counter-1),
+    // 4'b direction
+    .i_v_0(v_0),
+    .i_v_1(v_1),
+    .i_i(i_dir),
+    .i_d(d_dir),
+
+    .o_v_0(mem_out_v_0),
+    .o_v_1(mem_out_v_1),
+    .o_i(mem_out_i),
+    .o_d(mem_out_d)
+);
+
 always @(*) begin
     // keep reg value
     state_nxt = state;
@@ -213,6 +241,7 @@ always @(*) begin
     y_max_nxt = y_max;
     trace_dir_nxt = trace_dir;
     trace_open_nxt = trace_open;
+    wen_nxt = wen;
     case (state)
         IDLE: begin
             if (i_start) begin
@@ -227,6 +256,7 @@ always @(*) begin
                     PE_enable_nxt[i] = 1'b0;
                 end
                 left_bound_init_nxt = left_bound_init + $signed(g_e_penalty);
+                wen_nxt = 1'b1;
             end
             // initial score
             for (i=0; i<64; i=i+1) begin
@@ -252,6 +282,7 @@ always @(*) begin
         CALC: begin
             PE_enable_nxt[0] = i_start;
             counter_nxt = counter + 1;
+            wen_nxt = 1'b0;
             for (i=1; i<64; i=i+1) begin
                 PE_enable_nxt[i] = PE_enable[i-1];
             end
@@ -260,6 +291,7 @@ always @(*) begin
                 start_shift_nxt[stripe_count] = start_position;
                 end_position_nxt = counter;
                 counter_nxt = 10'b0;
+                wen_nxt = 1'b1;
             end
             A_array_nxt[0] = i_A;
             v_score_array_nxt[0] = PE_enable[0] ? v_score_out[0] : v_score_array[0];
@@ -316,6 +348,7 @@ always @(*) begin
                     start_shift_nxt[stripe_count] = start_position;
                     dia_score_first_PE_nxt = 14'b11000000000000; // if next stripe start from left boundary
                     end_position_nxt = counter;
+                    wen_nxt = 1'b1;
                 end
             end
             // score for next stripe
@@ -523,6 +556,7 @@ always @(posedge i_clk or posedge i_rst) begin
         y_max <= 6'b0;
         trace_dir <= 2'b0;
         trace_open <= 2'b0;
+        wen <= 1'b1;
 	end
 	// clock edge
 	else begin
@@ -539,9 +573,9 @@ always @(posedge i_clk or posedge i_rst) begin
             v_score_dia_array[i] <= v_score_dia_array_nxt[i];
             i_score_lef_array[i] <= i_score_lef_array_nxt[i];
             d_score_top_array[i] <= d_score_top_array_nxt[i];
-            v_dir[i] <= v_dir_nxt[i];
-            i_dir[i] <= i_dir_nxt[i];
-            d_dir[i] <= d_dir_nxt[i];
+            v_dir[i] <= v_dir_nxt[i] & PE_enable[i];
+            i_dir[i] <= i_dir_nxt[i] & PE_enable[i];
+            d_dir[i] <= d_dir_nxt[i] & PE_enable[i];
         end
         for (i=0; i<16; i=i+1) begin
             start_shift[i] <= start_shift_nxt[i];
@@ -572,6 +606,7 @@ always @(posedge i_clk or posedge i_rst) begin
         y_max <= y_max_nxt;
         trace_dir <= trace_dir_nxt;
         trace_open <= trace_open_nxt;
+        wen <= wen_nxt;
 	end
 end
 endmodule
