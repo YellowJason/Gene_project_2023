@@ -1,5 +1,6 @@
 module Mem_control (
     input i_clk,
+    input cen,
     input wen,
     input [3:0] bank,
     input [8:0] address,
@@ -34,7 +35,7 @@ generate
     for (gv=0; gv<16; gv=gv+1) begin: V_mem_0
         sram_sp_512x64 V_mem_0(
             .CLK(i_clk),
-            .CEN(1'b0),
+            .CEN(cen),
             .WEN(wen_bank[gv]),
             .A(address),
             .D(i_v_0),
@@ -57,7 +58,7 @@ generate
     for (gv=0; gv<16; gv=gv+1) begin: V_mem_1
         sram_sp_512x64 V_mem_1(
             .CLK(i_clk),
-            .CEN(1'b0),
+            .CEN(cen),
             .WEN(wen_bank[gv]),
             .A(address),
             .D(i_v_1),
@@ -80,7 +81,7 @@ generate
     for (gv=0; gv<16; gv=gv+1) begin: I_mem
         sram_sp_512x64 I_mem(
             .CLK(i_clk),
-            .CEN(1'b0),
+            .CEN(cen),
             .WEN(wen_bank[gv]),
             .A(address),
             .D(i_i),
@@ -103,7 +104,7 @@ generate
     for (gv=0; gv<16; gv=gv+1) begin: D_mem
         sram_sp_512x64 D_mem(
             .CLK(i_clk),
-            .CEN(1'b0),
+            .CEN(cen),
             .WEN(wen_bank[gv]),
             .A(address),
             .D(i_d),

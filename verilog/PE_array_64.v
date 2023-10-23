@@ -168,9 +168,10 @@ generate
 endgenerate
 
 // Memory banks
-reg wen, wen_nxt;
+reg wen, wen_nxt, cen, cen_nxt;
 reg [63:0] v_0, v_1;
 wire [63:0] mem_out_v_0, mem_out_v_1, mem_out_i, mem_out_d;
+reg [8:0] address, address_nxt;
 
 always @(*) begin
     for (i=0; i<64; i=i+1) begin
@@ -180,9 +181,10 @@ end
 
 Mem_control mem_banks(
     .i_clk(~i_clk),
+    .cen(cen),
     .wen(wen),
     .bank(stripe_count),
-    .address(counter-1),
+    .address(address),
     // 4'b direction
     .i_v_0(v_0),
     .i_v_1(v_1),
@@ -241,7 +243,9 @@ always @(*) begin
     y_max_nxt = y_max;
     trace_dir_nxt = trace_dir;
     trace_open_nxt = trace_open;
+    cen_nxt = 1'b0;
     wen_nxt = wen;
+    address_nxt = address;
     case (state)
         IDLE: begin
             if (i_start) begin
@@ -257,6 +261,7 @@ always @(*) begin
                 end
                 left_bound_init_nxt = left_bound_init + $signed(g_e_penalty);
                 wen_nxt = 1'b1;
+                address_nxt = 9'b0;
             end
             // initial score
             for (i=0; i<64; i=i+1) begin
@@ -292,6 +297,7 @@ always @(*) begin
                 end_position_nxt = counter;
                 counter_nxt = 10'b0;
                 wen_nxt = 1'b1;
+                address_nxt = 9'b0;
             end
             A_array_nxt[0] = i_A;
             v_score_array_nxt[0] = PE_enable[0] ? v_score_out[0] : v_score_array[0];
@@ -315,6 +321,7 @@ always @(*) begin
                 top_d_first_PE_nxt = d_last_PE[counter+start_position_old+1];
             end
             // Save direction
+            address_nxt = counter;
             for (i=0; i<64; i=i+1) begin
                 v_dir_metrix_nxt[stripe_count][counter][i] = PE_enable[i] ? v_dir_nxt[i] : 2'd0;
                 i_dir_metrix_nxt[stripe_count][counter][i] = PE_enable[i] ? i_dir_nxt[i] : 1'b0;
@@ -349,6 +356,7 @@ always @(*) begin
                     dia_score_first_PE_nxt = 14'b11000000000000; // if next stripe start from left boundary
                     end_position_nxt = counter;
                     wen_nxt = 1'b1;
+                    address_nxt = 9'b0;
                 end
             end
             // score for next stripe
@@ -556,7 +564,9 @@ always @(posedge i_clk or posedge i_rst) begin
         y_max <= 6'b0;
         trace_dir <= 2'b0;
         trace_open <= 2'b0;
+        cen <= 1'b1;
         wen <= 1'b1;
+        address <= 9'b0;
 	end
 	// clock edge
 	else begin
@@ -606,7 +616,9 @@ always @(posedge i_clk or posedge i_rst) begin
         y_max <= y_max_nxt;
         trace_dir <= trace_dir_nxt;
         trace_open <= trace_open_nxt;
+        cen <= cen_nxt;
         wen <= wen_nxt;
+        address <= address_nxt;
 	end
 end
 endmodule
