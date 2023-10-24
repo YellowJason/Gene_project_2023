@@ -1,5 +1,5 @@
 vcs PE_tb.v ./PE.v -full64 -R -debug_access+all +v2k +vcs+fsdbon +fsdb+mda +fsdbfile+PE.fsdb
-vcs -sverilog PE_array_tb_task.sv ./PE_array_64.v ./PE.v ./memory_control.v ./sram/sram_sp_512x64.v -full64 -R -debug_access+all +v2k -fgp | tee run.log
+vcs -sverilog PE_array_tb_task.sv ./PE_array_64.v ./PE.v ./memory_control.v ./sram/sram_sp_512x64.v -full64 -R -debug_access+all +v2k +notimingcheck | tee run.log
 
 // gate level
 vcs -sverilog ./PE_array_tb_task.sv ./synthesis/Netlist/PE_array_64_syn.v ./synthesis/tsmc13.v -full64 -R -debug_access+all +v2k +vcs+fsdbon +fsdb+mda +fsdbfile+PE_array_syn.fsdb -v +define+sdf

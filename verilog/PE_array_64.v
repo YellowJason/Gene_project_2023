@@ -40,9 +40,9 @@ reg [1:0] A_array[63:0], A_array_nxt[63:0];
 reg [1:0] B_array[63:0], B_array_nxt[63:0];
 
 // direction metrix, 16 stripes
-reg [1:0] v_dir_metrix[0:15][0:mem_length-1][0:63], v_dir_metrix_nxt[0:15][0:mem_length-1][0:63];
-reg       i_dir_metrix[0:15][0:mem_length-1][0:63], i_dir_metrix_nxt[0:15][0:mem_length-1][0:63];
-reg       d_dir_metrix[0:15][0:mem_length-1][0:63], d_dir_metrix_nxt[0:15][0:mem_length-1][0:63];
+reg [1:0]  v_dir_metrix[0:15][0:mem_length-1][0:63], v_dir_metrix_nxt[0:15][0:mem_length-1][0:63];
+reg [63:0] i_dir_metrix[0:15][0:mem_length-1]      , i_dir_metrix_nxt[0:15][0:mem_length-1];
+reg [63:0] d_dir_metrix[0:15][0:mem_length-1]      , d_dir_metrix_nxt[0:15][0:mem_length-1];
 
 // save score or not
 reg [63:0] PE_enable, PE_enable_nxt;
@@ -123,8 +123,8 @@ wire [1:0] v_trace = v_dir_metrix[stripe_count][x_max][y_max];
 
 // trace gap open, 0:no, 1:trace D (top), 2:trace I (left)
 reg [1:0] trace_open, trace_open_nxt;
-wire open_d = d_dir_metrix[stripe_count][x_max][y_max];
-wire open_i = i_dir_metrix[stripe_count][x_max][y_max];
+wire [63:0] open_d = d_dir_metrix[stripe_count][x_max];
+wire [63:0] open_i = i_dir_metrix[stripe_count][x_max];
 
 // 64 PEs
 genvar gv;
@@ -172,6 +172,7 @@ reg wen, wen_nxt, cen, cen_nxt;
 reg [63:0] v_0, v_1;
 wire [63:0] mem_out_v_0, mem_out_v_1, mem_out_i, mem_out_d;
 reg [8:0] address, address_nxt;
+wire [1:0] v_trace_mem = {mem_out_v_1[y_max], mem_out_v_0[y_max]};
 
 always @(*) begin
     for (i=0; i<64; i=i+1) begin
@@ -297,7 +298,6 @@ always @(*) begin
                 end_position_nxt = counter;
                 counter_nxt = 10'b0;
                 wen_nxt = 1'b1;
-                address_nxt = 9'b0;
             end
             A_array_nxt[0] = i_A;
             v_score_array_nxt[0] = PE_enable[0] ? v_score_out[0] : v_score_array[0];
@@ -356,7 +356,6 @@ always @(*) begin
                     dia_score_first_PE_nxt = 14'b11000000000000; // if next stripe start from left boundary
                     end_position_nxt = counter;
                     wen_nxt = 1'b1;
-                    address_nxt = 9'b0;
                 end
             end
             // score for next stripe
