@@ -75,7 +75,7 @@ initial begin
     $fsdbDumpfile("PE_array.fsdb");
     // $fsdbSuppress(PE0.v_dir_metrix, PE0.d_dir_metrix, PE0.i_dir_metrix);
     $fsdbDumpvars();
-    // $fsdbDumpMDA;
+    $fsdbDumpMDA;
 
     $readmemh("./gene_2_array.txt", i_A);
     $readmemh("./gene_1_array.txt", i_B);
