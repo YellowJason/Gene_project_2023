@@ -168,20 +168,23 @@ generate
 endgenerate
 
 // Memory banks
-reg wen, wen_nxt, cen, cen_nxt;
+reg wen, cen, cen_nxt;
 reg [63:0] v_0, v_1;
 wire [63:0] mem_out_v_0, mem_out_v_1, mem_out_i, mem_out_d;
-reg [8:0] address, address_nxt;
+reg [8:0] address;
 wire [1:0] v_trace_mem = {mem_out_v_1[y_max], mem_out_v_0[y_max]};
 
 always @(*) begin
     for (i=0; i<64; i=i+1) begin
-        {v_1[i], v_0[i]} = v_dir[i];
+        {v_1[i], v_0[i]} = v_dir_nxt[i] & {2{PE_enable[i]}};
     end
+    // address setting
+    wen = (state != CALC);
+    address = (state == CALC) ? counter : x_max_nxt;
 end
 
 Mem_control mem_banks(
-    .i_clk(~i_clk),
+    .i_clk(i_clk),
     .cen(cen),
     .wen(wen),
     .bank(stripe_count),
@@ -189,8 +192,8 @@ Mem_control mem_banks(
     // 4'b direction
     .i_v_0(v_0),
     .i_v_1(v_1),
-    .i_i(i_dir),
-    .i_d(d_dir),
+    .i_i(i_dir_nxt),
+    .i_d(d_dir_nxt),
 
     .o_v_0(mem_out_v_0),
     .o_v_1(mem_out_v_1),
@@ -245,8 +248,6 @@ always @(*) begin
     trace_dir_nxt = trace_dir;
     trace_open_nxt = trace_open;
     cen_nxt = 1'b0;
-    wen_nxt = wen;
-    address_nxt = address;
     case (state)
         IDLE: begin
             if (i_start) begin
@@ -261,8 +262,6 @@ always @(*) begin
                     PE_enable_nxt[i] = 1'b0;
                 end
                 left_bound_init_nxt = left_bound_init + $signed(g_e_penalty);
-                wen_nxt = 1'b1;
-                address_nxt = 9'b0;
             end
             // initial score
             for (i=0; i<64; i=i+1) begin
@@ -288,7 +287,6 @@ always @(*) begin
         CALC: begin
             PE_enable_nxt[0] = i_start;
             counter_nxt = counter + 1;
-            wen_nxt = 1'b0;
             for (i=1; i<64; i=i+1) begin
                 PE_enable_nxt[i] = PE_enable[i-1];
             end
@@ -297,7 +295,6 @@ always @(*) begin
                 start_shift_nxt[stripe_count] = start_position;
                 end_position_nxt = counter;
                 counter_nxt = 10'b0;
-                wen_nxt = 1'b1;
             end
             A_array_nxt[0] = i_A;
             v_score_array_nxt[0] = PE_enable[0] ? v_score_out[0] : v_score_array[0];
@@ -321,11 +318,10 @@ always @(*) begin
                 top_d_first_PE_nxt = d_last_PE[counter+start_position_old+1];
             end
             // Save direction
-            address_nxt = counter;
             for (i=0; i<64; i=i+1) begin
                 v_dir_metrix_nxt[stripe_count][counter][i] = PE_enable[i] ? v_dir_nxt[i] : 2'd0;
-                i_dir_metrix_nxt[stripe_count][counter][i] = PE_enable[i] ? i_dir_nxt[i] : 1'b0;
-                d_dir_metrix_nxt[stripe_count][counter][i] = PE_enable[i] ? d_dir_nxt[i] : 1'b0;
+                i_dir_metrix_nxt[stripe_count][counter][i] = i_dir_nxt[i];
+                d_dir_metrix_nxt[stripe_count][counter][i] = d_dir_nxt[i];
             end
             // min & max will delay one cycle
             if (counter != 0) begin
@@ -355,7 +351,6 @@ always @(*) begin
                     start_shift_nxt[stripe_count] = start_position;
                     dia_score_first_PE_nxt = 14'b11000000000000; // if next stripe start from left boundary
                     end_position_nxt = counter;
-                    wen_nxt = 1'b1;
                 end
             end
             // score for next stripe
@@ -386,9 +381,9 @@ always @(*) begin
             start_position_old_nxt = start_position;
         end
         TRAC: begin
-            trace_dir_nxt = v_dir_metrix[stripe_count][x_max][y_max];
+            trace_dir_nxt = v_trace_mem;
             // reach bigining
-            if ((((x_max == 0) & (v_trace != 2'd2)) | ((y_max == 0) & (v_trace != 2'd3))) & (stripe_count == 0)) begin
+            if ((((x_max == 0) & (v_trace_mem != 2'd2)) | ((y_max == 0) & (v_trace_mem != 2'd3))) & (stripe_count == 0)) begin
                 state_nxt = IDLE;
                 finish_nxt = 1'b1;
             end
@@ -396,7 +391,7 @@ always @(*) begin
             else if ((y_max == 0)) begin
                 // trace on T metrix
                 if (trace_open == 2'd0) begin
-                    case (v_dir_metrix[stripe_count][x_max][y_max])
+                    case (v_trace_mem)
                         2'd1: begin // dia
                             stripe_count_nxt = stripe_count - 1;
                             y_max_nxt = 6'd63;
@@ -407,7 +402,7 @@ always @(*) begin
                             stripe_count_nxt = stripe_count - 1;
                             y_max_nxt = 6'd63;
                             x_max_nxt = x_max + start_shift[stripe_count-1] + 7'd63;
-                            if (d_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                            if (mem_out_d[y_max] == 1'b0) begin
                                 trace_open_nxt = 2'd1;
                             end
                             else begin
@@ -418,7 +413,7 @@ always @(*) begin
                             y_max_nxt = y_max;
                             x_max_nxt = x_max - 1'b1;
                             trace_open_nxt = 2'd2;
-                            if (i_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                            if (mem_out_i[y_max] == 1'b0) begin
                                 trace_open_nxt = 2'd2;
                             end
                             else begin
@@ -433,7 +428,7 @@ always @(*) begin
                     stripe_count_nxt = stripe_count - 1;
                     y_max_nxt = 6'd63;
                     x_max_nxt = x_max + start_shift[stripe_count-1] + 7'd63;
-                    if (d_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                    if (mem_out_d[y_max] == 1'b0) begin
                         trace_open_nxt = 2'd1;
                     end
                     else begin
@@ -445,7 +440,7 @@ always @(*) begin
                     trace_dir_nxt = 2'd3;
                     y_max_nxt = y_max;
                     x_max_nxt = x_max - 1'b1;
-                    if (i_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                    if (mem_out_i[y_max] == 1'b0) begin
                         trace_open_nxt = 2'd2;
                     end
                     else begin
@@ -458,7 +453,7 @@ always @(*) begin
                 state_nxt = state;
                 // trace on T metrix
                 if (trace_open == 2'd0) begin
-                    case (v_dir_metrix[stripe_count][x_max][y_max])
+                    case (v_trace_mem)
                         2'd1: begin // dia
                             y_max_nxt = y_max - 1'b1;
                             x_max_nxt = x_max - 2'd2;
@@ -467,7 +462,7 @@ always @(*) begin
                         2'd2: begin // top
                             y_max_nxt = y_max - 1'b1;
                             x_max_nxt = x_max - 1'b1;
-                            if (d_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                            if (mem_out_d[y_max] == 1'b0) begin
                                 trace_open_nxt = 2'd1;
                             end
                             else begin
@@ -477,7 +472,7 @@ always @(*) begin
                         2'd3: begin // left
                             y_max_nxt = y_max;
                             x_max_nxt = x_max - 1'b1;
-                            if (i_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                            if (mem_out_i[y_max] == 1'b0) begin
                                 trace_open_nxt = 2'd2;
                             end
                             else begin
@@ -491,7 +486,7 @@ always @(*) begin
                     trace_dir_nxt = 2'd2;
                     y_max_nxt = y_max - 1'b1;
                     x_max_nxt = x_max - 1'b1;
-                    if (d_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                    if (mem_out_d[y_max] == 1'b0) begin
                         trace_open_nxt = 2'd1;
                     end
                     else begin
@@ -503,7 +498,7 @@ always @(*) begin
                     trace_dir_nxt = 2'd3;
                     y_max_nxt = y_max;
                     x_max_nxt = x_max - 1'b1;
-                    if (i_dir_metrix[stripe_count][x_max][y_max] == 1'b0) begin
+                    if (mem_out_i[y_max] == 1'b0) begin
                         trace_open_nxt = 2'd2;
                     end
                     else begin
@@ -564,8 +559,6 @@ always @(posedge i_clk or posedge i_rst) begin
         trace_dir <= 2'b0;
         trace_open <= 2'b0;
         cen <= 1'b1;
-        wen <= 1'b1;
-        address <= 9'b0;
 	end
 	// clock edge
 	else begin
@@ -583,8 +576,8 @@ always @(posedge i_clk or posedge i_rst) begin
             i_score_lef_array[i] <= i_score_lef_array_nxt[i];
             d_score_top_array[i] <= d_score_top_array_nxt[i];
             v_dir[i] <= v_dir_nxt[i] & PE_enable[i];
-            i_dir[i] <= i_dir_nxt[i] & PE_enable[i];
-            d_dir[i] <= d_dir_nxt[i] & PE_enable[i];
+            i_dir[i] <= i_dir_nxt[i];
+            d_dir[i] <= d_dir_nxt[i];
         end
         for (i=0; i<16; i=i+1) begin
             start_shift[i] <= start_shift_nxt[i];
@@ -616,8 +609,6 @@ always @(posedge i_clk or posedge i_rst) begin
         trace_dir <= trace_dir_nxt;
         trace_open <= trace_open_nxt;
         cen <= cen_nxt;
-        wen <= wen_nxt;
-        address <= address_nxt;
 	end
 end
 endmodule
