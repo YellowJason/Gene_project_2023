@@ -1,5 +1,27 @@
-`timescale 1ns/10ps
-`define CYCLE 100
+`timescale 1ns/1ps
+`define CYCLE 10
+
+`ifdef tb0
+    `define GENE1 "./test_data/gene_1_array_10.txt"
+    `define GENE2 "./test_data/gene_2_array_10.txt"
+    `define ALIGN "./test_data/align_10.txt"
+`elsif tb1
+    `define GENE1 "./test_data/gene_1_array_1.txt"
+    `define GENE2 "./test_data/gene_2_array_1.txt"
+    `define ALIGN "./test_data/align_1.txt"
+`elsif tb2
+    `define GENE1 "./test_data/gene_1_array_2.txt"
+    `define GENE2 "./test_data/gene_2_array_2.txt"
+    `define ALIGN "./test_data/align_2.txt"
+`elsif tb3
+    `define GENE1 "./test_data/gene_1_array_3.txt"
+    `define GENE2 "./test_data/gene_2_array_3.txt"
+    `define ALIGN "./test_data/align_3.txt"
+`else
+    `define GENE1 "./test_data/gene_1_array_10.txt"
+    `define GENE2 "./test_data/gene_2_array_10.txt"
+    `define ALIGN "./test_data/align_10.txt"
+`endif
 
 module tb;
 
@@ -77,9 +99,9 @@ initial begin
     $fsdbDumpvars();
     $fsdbDumpMDA;
 
-    $readmemh("./gene_2_array.txt", i_A);
-    $readmemh("./gene_1_array.txt", i_B);
-    $readmemh("./align.txt", align_gold);
+    $readmemh(`GENE2, i_A);
+    $readmemh(`GENE1, i_B);
+    $readmemh(`ALIGN, align_gold);
 
     clk = 1'b0;
     rst = 1'b0;
