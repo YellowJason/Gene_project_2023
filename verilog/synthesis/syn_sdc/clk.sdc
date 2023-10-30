@@ -1,6 +1,6 @@
 # operating conditions and boundary conditions #
 
-set cycle 10.000
+set cycle 3.000
 set CLOCK "i_clk"
 
 create_clock -period $cycle [get_ports  $CLOCK]
