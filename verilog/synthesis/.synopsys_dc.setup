@@ -5,6 +5,7 @@ set search_path ". 	/cad/cell_library/CBDK_TSMC40_Arm_f2.0/CIC/SynopsysDC/db/sc9
 					/cad/cell_library/CBDK_TSMC40_Arm_f2.0/CIC/SynopsysDC/db/sc9_base_hvt/ \
 					/cad/cell_library/CBDK_TSMC40_Arm_f2.0/CIC/SynopsysDC/db/sc9_base_lvt/ \
 					../sram/ \
+					../sram_small \
 					$search_path"
 set target_library "sc9_cln40g_base_rvt_ss_typical_max_0p81v_125c.db \
                     sc9_cln40g_base_rvt_ff_typical_min_0p99v_m40c.db \
@@ -14,7 +15,9 @@ set target_library "sc9_cln40g_base_rvt_ss_typical_max_0p81v_125c.db \
                     sc9_cln40g_base_lvt_ff_typical_min_0p99v_m40c.db \
                     sram_sp_512x64_nldm_ss_0p81v_0p81v_125c_syn.db \
 					sram_sp_512x64_nldm_ff_0p99v_0p99v_m40c_syn.db \
-                   "
+					sram_dp_512x28_nldm_ss_0p81v_0p81v_125c_syn.db \
+					sram_dp_512x28_nldm_ff_0p99v_0p99v_m40c_syn.db"
+
 set link_library "* $target_library dw_foundation.sldb"
 set symbol_library [list "generic.sdb"]
 set synthetic_library [list "dw_foundation.sldb"]
