@@ -1,7 +1,19 @@
 vcs PE_tb.v ./PE.v -full64 -R -debug_access+all +v2k +vcs+fsdbon +fsdb+mda +fsdbfile+PE.fsdb
 vcs -sverilog PE_array_tb_task.sv ./PE_array_64.v ./PE.v ./memory_control.v ./sram/sram_sp_512x64.v -full64 -R -debug_access+all +v2k +notimingcheck +define+tb0 | tee run.log
 
+// synthesis
+dc_shell-t -f main.tcl | tee syn.log
+dc_shell-t -f all_syn.tcl | tee syn.log
+
 // gate level
 vcs -sverilog ./PE_array_tb_task.sv ./synthesis/Netlist/PE_array_64_syn.v ./synthesis/tsmc13.v -full64 -R -debug_access+all +v2k +vcs+fsdbon +fsdb+mda +fsdbfile+PE_array_syn.fsdb -v +define+sdf
 
-dc_shell-t -f main.tcl | tee syn.log
+// sram lc_shell
+read_lib sram_sp_512x64_nldm_ss_0p81v_0p81v_125c_syn.lib
+write_lib sram_sp_512*64_nldm_ss_0p81v_0p81v_125c -o sram_sp_512x64_nldm_ss_0p81v_0p81v_125c_syn.db
+
+read_lib sram_sp_512x64_nldm_ff_0p99v_0p99v_m40c_syn.lib
+write_lib sram_sp_512*64_nldm_ff_0p99v_0p99v_m40c -o sram_sp_512x64_nldm_ff_0p99v_0p99v_m40c_syn.db
+
+read_lib sram_sp_512x64_nldm_tt_0p90v_0p90v_25c_syn.lib
+write_lib sram_sp_512*64_nldm_tt_0p90v_0p90v_25c -o sram_sp_512x64_nldm_tt_0p90v_0p90v_25c_syn.db
