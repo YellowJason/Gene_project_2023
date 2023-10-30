@@ -1,5 +1,6 @@
 `timescale 1ns/1ps
 `define CYCLE 10
+`define SDFFILE "./synthesis/Netlist/PE_array_64_syn.sdf"
 
 `ifdef tb0
     `define GENE1 "./test_data/gene_1_array_10.txt"
@@ -46,6 +47,11 @@ logic [8:0] error_count;
 //         i_i_B[2*i+:2] = i_B[i]; 
 //     end
 // end
+
+`ifdef SDF
+    initial $sdf_annotate(`SDFFILE, PE0);
+    initial #1 $display("SDF File %s were used for this simulation.", `SDFFILE);
+`endif
 
 always begin
   #(`CYCLE/2) clk=~clk;
@@ -95,7 +101,6 @@ endtask
 
 initial begin     
     $fsdbDumpfile("PE_array.fsdb");
-    // $fsdbSuppress(PE0.v_dir_metrix, PE0.d_dir_metrix, PE0.i_dir_metrix);
     $fsdbDumpvars();
     $fsdbDumpMDA;
 

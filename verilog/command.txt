@@ -6,10 +6,15 @@ dc_shell-t -f main.tcl | tee syn.log
 dc_shell-t -f all_syn.tcl | tee syn.log
 
 // gate level
-vcs -sverilog ./PE_array_tb_task.sv ./synthesis/Netlist/PE_array_64_syn.v ./synthesis/tsmc13.v -full64 -R -debug_access+all +v2k +vcs+fsdbon +fsdb+mda +fsdbfile+PE_array_syn.fsdb -v +define+sdf
+vcs -sverilog PE_array_tb_task.sv ./synthesis/Netlist/PE_array_64_syn.v ./sram/sram_sp_512x64.v \
+/cad/cell_library/CBDK_TSMC40_Arm_f2.0/CIC/Verilog/sc9_cln40g_base_lvt.v \
+/cad/cell_library/CBDK_TSMC40_Arm_f2.0/CIC/Verilog/sc9_cln40g_base_rvt.v \
+/cad/cell_library/CBDK_TSMC40_Arm_f2.0/CIC/Verilog/sc9_cln40g_base_hvt.v \
+/cad/cell_library/CBDK_TSMC40_Arm_f2.0/CIC/Verilog/sc9_cln40g_base_rvt_udp.v \
+-full64 -R -debug_access+all +v2k +define+SDF +define+tb0 | tee run_syn.log
 
 // sram lc_shell
-read_lib sram_sp_512x64_nldm_ss_0p81v_0p81v_125c_syn.lib
+read_lib sram_sp_512x64_nldm_ss_0p81v_0p81v_125c_syn.liblc_shell
 write_lib sram_sp_512*64_nldm_ss_0p81v_0p81v_125c -o sram_sp_512x64_nldm_ss_0p81v_0p81v_125c_syn.db
 
 read_lib sram_sp_512x64_nldm_ff_0p99v_0p99v_m40c_syn.lib
