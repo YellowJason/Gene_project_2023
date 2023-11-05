@@ -348,7 +348,7 @@ always @(*) begin
                     end
                 end
                 // save local maximum
-                if ($signed(local_max) > $signed(max_in_PEs)) begin
+                if ($signed(local_max) >= $signed(max_in_PEs)) begin
                     local_max_nxt = local_max;
                     x_max_nxt = x_max;
                     y_max_nxt = y_max;
@@ -360,13 +360,13 @@ always @(*) begin
                 end
             end
             // stop stripe
-            if (((PE_enable[63] == 1) & (PE_enable[62] == 0)) | ($signed(max_in_PEs) < $signed(stop_threshold))) begin
+            if (((PE_enable[63] == 1) & (PE_enable[62] == 0)) | ($signed(max_in_PEs) < $signed(stop_threshold)) | (counter == 10'd511)) begin
                 state_nxt = EVAL;
                 counter_nxt = 10'b0;
-                start_shift_nxt[stripe_count] = start_position;
                 dia_score_first_PE_nxt = 14'b11000000000000; // if next stripe start from left boundary
                 end_position_nxt = counter;
                 start_position_nxt = ($signed(min_array[start_position]) <= $signed(stop_threshold)) ? default_shift : start_position;
+                start_shift_nxt[stripe_count] = start_position_nxt;
             end
         end
         EVAL: begin // find next start column
