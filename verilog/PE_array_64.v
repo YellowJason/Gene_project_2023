@@ -343,8 +343,10 @@ always @(*) begin
                 if (counter[9:6] != 4'b0) begin
                     min_array_nxt[counter-64] = min_in_PEs; // minimum of 64'th step should be put in first position
                     // start position for next stripe
-                    if (($signed(min_array[start_position]) <= $signed(stop_threshold)) & (min_array[start_position] != -14'd4096)) begin
-                        start_position_nxt = start_position + 1;
+                    if (($signed(min_array[start_position]) <= $signed(stop_threshold)) &
+                        (min_array[start_position] != -14'd4096) &
+                        (start_position <= counter - 7'd70)) begin
+                        start_position_nxt = start_position + 2'd2;
                     end
                 end
                 // save local maximum
@@ -388,8 +390,8 @@ always @(*) begin
         end
         TRAC: begin
             trace_dir_nxt = v_trace_mem;
-            // reach bigining
-            if ((((x_max == 0) & (v_trace_mem != 2'd2)) | ((y_max == 0) & (v_trace_mem != 2'd3))) & (stripe_count == 0)) begin
+            // reach bigining (up bound, left bound)
+            if ((((x_max == y_max) & (v_trace_mem != 2'd2)) | ((y_max == 0) & (v_trace_mem != 2'd3))) & (stripe_count == 0)) begin
                 state_nxt = IDLE;
                 finish_nxt = 1'b1;
             end
