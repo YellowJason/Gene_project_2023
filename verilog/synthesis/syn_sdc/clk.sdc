@@ -16,7 +16,7 @@ set_clock_transition   0.1  [all_clocks]
 set_load         0.1     	[all_outputs]
 set_drive        1     		[all_inputs]
 
-set_input_delay  0.0   -clock $CLOCK [remove_from_collection [all_inputs] [get_ports $CLOCK]]
+set_input_delay  0.0   -clock $CLOCK [remove_from_collection [all_inputs] [get_ports $CLOCK]] -clock_fall
 set_output_delay 0.0   -clock $CLOCK [all_outputs] -clock_fall
 
 set_operating_conditions -min_library sc9_cln40g_base_rvt_ff_typical_min_0p99v_m40c -min ff_typical_min_0p99v_m40c \
