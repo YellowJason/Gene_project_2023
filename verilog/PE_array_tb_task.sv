@@ -18,6 +18,10 @@
     `define GENE1 "./test_data/gene_1_array_3.txt"
     `define GENE2 "./test_data/gene_2_array_3.txt"
     `define ALIGN "./test_data/align_3.txt"
+`elsif tb4
+    `define GENE1 "./test_data/gene_1_array_4.txt"
+    `define GENE2 "./test_data/gene_2_array_4.txt"
+    `define ALIGN "./test_data/align_4.txt"
 `else
     `define GENE1 "./test_data/gene_1_array_10.txt"
     `define GENE2 "./test_data/gene_2_array_10.txt"

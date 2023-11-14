@@ -17,6 +17,8 @@ integer i, j, k;
 parameter g_o_penalty = -14'd12;
 parameter g_e_penalty = -14'd1;
 parameter mem_length = 512;
+parameter threshold = 14'd250;
+parameter default_shift = 9'd32;
 
 // ***************for test***************
 reg [19:0] align_count;
@@ -38,11 +40,6 @@ reg [9:0] start_shift[0:15], start_shift_nxt[0:15];
 // 2 input sequence
 reg [1:0] A_array[63:0], A_array_nxt[63:0];
 reg [1:0] B_array[63:0], B_array_nxt[63:0];
-
-// direction metrix, 16 stripes
-// reg [1:0]  v_dir_metrix[0:15][0:mem_length-1][0:63], v_dir_metrix_nxt[0:15][0:mem_length-1][0:63];
-// reg [63:0] i_dir_metrix[0:15][0:mem_length-1]      , i_dir_metrix_nxt[0:15][0:mem_length-1];
-// reg [63:0] d_dir_metrix[0:15][0:mem_length-1]      , d_dir_metrix_nxt[0:15][0:mem_length-1];
 
 // save score or not
 reg [63:0] PE_enable, PE_enable_nxt;
@@ -105,7 +102,7 @@ assign o_end_position = end_position;
 reg [13:0] min_array [0:mem_length-1], min_array_nxt [0:mem_length-1];
 reg [13:0] local_max, local_max_nxt; // max score in the stripe
 wire [13:0] stop_threshold;
-assign stop_threshold = local_max - 14'd250;
+assign stop_threshold = local_max - threshold;
 assign o_max_score_stripe = local_max;
 
 // max position
@@ -115,12 +112,9 @@ reg [5:0] y_max, y_max_nxt;
 // trace result
 reg [1:0] trace_dir, trace_dir_nxt;
 assign o_trace_dir = trace_dir;
-// wire [1:0] v_trace = v_dir_metrix[stripe_count][x_max][y_max];
 
 // trace gap open, 0:no, 1:trace D (top), 2:trace I (left)
 reg [1:0] trace_open, trace_open_nxt;
-// wire [63:0] open_d = d_dir_metrix[stripe_count][x_max];
-// wire [63:0] open_i = i_dir_metrix[stripe_count][x_max];
 
 // Memory banks
 reg wen, cen, cen_nxt;
@@ -326,12 +320,6 @@ always @(*) begin
             for (i=1; i<64; i=i+1) begin
                 PE_enable_nxt[i] = PE_enable[i-1];
             end
-            if ((PE_enable[63] == 1) & (PE_enable[62] == 0)) begin
-                state_nxt = EVAL;
-                start_shift_nxt[stripe_count] = start_position;
-                end_position_nxt = counter;
-                counter_nxt = 10'b0;
-            end
             A_array_nxt[0] = i_A;
             v_score_array_nxt[0] = PE_enable[0] ? v_score_out[0] : v_score_array[0];
             v_score_dia_array_nxt[0] = PE_enable[0] ? v_score_array[0] : v_score_dia_array[0];
@@ -345,24 +333,24 @@ always @(*) begin
                 d_score_top_array_nxt[i] = PE_enable[i] ? d_score_out[i] : d_score_top_array[i];
             end
             dia_score_first_PE_nxt = top_score_first_PE;
-            // Save direction
-            // for (i=0; i<64; i=i+1) begin
-            //     v_dir_metrix_nxt[stripe_count][counter][i] = PE_enable[i] ? v_dir_nxt[i] : 2'd0;
-            //     i_dir_metrix_nxt[stripe_count][counter][i] = i_dir_nxt[i];
-            //     d_dir_metrix_nxt[stripe_count][counter][i] = d_dir_nxt[i];
-            // end
+            if (counter < 10'd63) begin
+                left_bound_init_nxt = left_bound_init + $signed(g_e_penalty);
+                if (start_on_bound) v_score_array_nxt[counter+1] = left_bound_init;
+            end
             // min & max will delay one cycle
             if (counter != 0) begin
                 // Save min score after 64 cycles
                 if (counter[9:6] != 4'b0) begin
                     min_array_nxt[counter-64] = min_in_PEs; // minimum of 64'th step should be put in first position
                     // start position for next stripe
-                    if (($signed(min_array[start_position]) <= $signed(stop_threshold)) & (min_array[start_position] != -14'd4096)) begin
-                        start_position_nxt = start_position + 1;
+                    if (($signed(min_array[start_position]) <= $signed(stop_threshold)) &
+                        (min_array[start_position] != -14'd4096) &
+                        (start_position <= counter - 7'd70)) begin
+                        start_position_nxt = start_position + 2'd2;
                     end
                 end
-                // if stop
-                if ($signed(local_max) > $signed(max_in_PEs)) begin
+                // save local maximum
+                if ($signed(local_max) >= $signed(max_in_PEs)) begin
                     local_max_nxt = local_max;
                     x_max_nxt = x_max;
                     y_max_nxt = y_max;
@@ -372,18 +360,15 @@ always @(*) begin
                     x_max_nxt = counter - 1;
                     y_max_nxt = max_y_temp;
                 end
-
-                if ($signed(max_in_PEs) < $signed(stop_threshold)) begin
-                    state_nxt = EVAL;
-                    counter_nxt = 10'b0;
-                    start_shift_nxt[stripe_count] = start_position;
-                    dia_score_first_PE_nxt = 14'b11000000000000; // if next stripe start from left boundary
-                    end_position_nxt = counter;
-                end
             end
-            if (counter < 10'd63) begin
-                left_bound_init_nxt = left_bound_init + $signed(g_e_penalty);
-                if (start_on_bound) v_score_array_nxt[counter+1] = left_bound_init;
+            // stop stripe
+            if (((PE_enable[63] == 1) & (PE_enable[62] == 0)) | ($signed(max_in_PEs) < $signed(stop_threshold)) | (counter == 10'd511)) begin
+                state_nxt = EVAL;
+                counter_nxt = 10'b0;
+                dia_score_first_PE_nxt = 14'b11000000000000; // if next stripe start from left boundary
+                end_position_nxt = counter;
+                start_position_nxt = ($signed(min_array[start_position]) <= $signed(stop_threshold)) ? default_shift : start_position;
+                start_shift_nxt[stripe_count] = start_position_nxt;
             end
         end
         EVAL: begin // find next start column
@@ -405,8 +390,8 @@ always @(*) begin
         end
         TRAC: begin
             trace_dir_nxt = v_trace_mem;
-            // reach bigining
-            if ((((x_max == 0) & (v_trace_mem != 2'd2)) | ((y_max == 0) & (v_trace_mem != 2'd3))) & (stripe_count == 0)) begin
+            // reach bigining (up bound, left bound)
+            if ((((x_max == y_max) & (v_trace_mem != 2'd2)) | ((y_max == 0) & (v_trace_mem != 2'd3))) & (stripe_count == 0)) begin
                 state_nxt = IDLE;
                 finish_nxt = 1'b1;
             end
