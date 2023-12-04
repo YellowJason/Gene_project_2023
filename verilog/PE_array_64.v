@@ -63,7 +63,7 @@ wire [13:0] i_score_out[0:63];
 wire [13:0] d_score_out[0:63];
 
 // directions
-reg  [1:0] v_dir[0:63];
+reg  [1:0] v_dir[0:63], v_dir_dia[0:63];
 wire [1:0] v_dir_nxt[0:63];
 reg  [63:0] i_dir;
 wire [63:0] i_dir_nxt;
@@ -216,6 +216,7 @@ generate
                 .i_v_left_score(v_score_array[gv]),
                 .i_i_left_score(i_score_lef_array[gv]),
                 .i_d_top_score(top_d_first_PE),
+                .i_dia_dir(2'd2),
                 .o_v_score(v_score_out[gv]),
                 .o_i_score(i_score_out[gv]),
                 .o_d_score(d_score_out[gv]),
@@ -233,6 +234,7 @@ generate
                 .i_v_left_score(v_score_array[gv]),
                 .i_i_left_score(i_score_lef_array[gv]),
                 .i_d_top_score(d_score_top_array[gv-1]),
+                .i_dia_dir(v_dir_dia[gv-1]),
                 .o_v_score(v_score_out[gv]),
                 .o_i_score(i_score_out[gv]),
                 .o_d_score(d_score_out[gv]),
@@ -390,6 +392,7 @@ always @(*) begin
         end
         TRAC: begin
             trace_dir_nxt = v_trace_mem;
+            counter_nxt = counter + 1;
             // reach bigining (up bound, left bound)
             if ((((x_max == y_max) & (v_trace_mem != 2'd2)) | ((y_max == 0) & (v_trace_mem != 2'd3))) & (stripe_count == 0)) begin
                 state_nxt = IDLE;
@@ -462,6 +465,13 @@ always @(*) begin
                 // trace on T metrix
                 if (trace_open == 2'd0) begin
                     case (v_trace_mem)
+                        2'd0: begin // dia 2 step
+                            y_max_nxt = y_max - 2'd2;
+                            // dia two step may cross stripe
+                            x_max_nxt = (y_max == 6'd1) ? (x_max + start_shift[stripe_count-1] - 2'd3 + 7'd63) : (x_max - 3'd4);
+                            stripe_count_nxt = (y_max == 6'd1) ? (stripe_count-1) : stripe_count;
+                            trace_open_nxt = 2'd0;
+                        end
                         2'd1: begin // dia
                             y_max_nxt = y_max - 1'b1;
                             x_max_nxt = x_max - 2'd2;
@@ -533,7 +543,8 @@ always @(posedge i_clk or posedge i_rst) begin
             v_score_dia_array[i] <= 14'b0;
             i_score_lef_array[i] <= 14'b0;
             d_score_top_array[i] <= 14'b0;
-            v_dir[i] <= 2'b0;
+            v_dir[i] <= 2'd2;
+            v_dir_dia[i] <= 2'd2;
             i_dir[i] <= 1'b0;
             d_dir[i] <= 1'b0;
         end
@@ -573,7 +584,8 @@ always @(posedge i_clk or posedge i_rst) begin
             v_score_dia_array[i] <= v_score_dia_array_nxt[i];
             i_score_lef_array[i] <= i_score_lef_array_nxt[i];
             d_score_top_array[i] <= d_score_top_array_nxt[i];
-            v_dir[i] <= v_dir_nxt[i] & PE_enable[i];
+            v_dir[i] <= PE_enable[i] ? v_dir_nxt[i] : 2'd2;
+            v_dir_dia[i] <= v_dir[i];
             i_dir[i] <= i_dir_nxt[i];
             d_dir[i] <= d_dir_nxt[i];
         end

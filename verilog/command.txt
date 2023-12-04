@@ -1,3 +1,4 @@
+// RTL
 vcs PE_tb.v ./PE.v -full64 -R -debug_access+all +v2k +vcs+fsdbon +fsdb+mda +fsdbfile+PE.fsdb
 vcs -sverilog PE_array_tb_task.sv ./PE_array_64.v ./PE.v ./memory_control.v ./sram/sram_sp_512x64.v ./sram_small/sram_dp_512x28.v \
 -full64 -R -debug_access+all +v2k +notimingcheck +define+tb0 | tee run.log

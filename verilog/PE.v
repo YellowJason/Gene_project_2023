@@ -9,12 +9,14 @@ module PE (
     input signed [13:0] i_i_left_score,
     // deletion metrix
     input signed [13:0] i_d_top_score,
+    // diagonal score
+    input         [1:0] i_dia_dir,
     // output score of V,I,D
     output signed [13:0] o_v_score,
     output signed [13:0] o_i_score,
     output signed [13:0] o_d_score,
     // output direction
-    output [1:0] o_v_direct, // 0:top-left, 1:top, 2:left
+    output [1:0] o_v_direct, // 1:top-left, 2:top, 3:left
     output       o_i_direct, // 0:from I (extension), 1:from V (opening)
     output       o_d_direct  // 0:from D (extension), 1:from V (opening)
 );
@@ -46,7 +48,9 @@ assign o_d_direct = ($signed(D_temp_1) >= $signed(D_temp_2)) ? 1'b1 : 1'b0;
 // final score
 assign o_v_score = (($signed(V_temp) >= $signed(o_i_score)) & ($signed(V_temp) >= $signed(o_d_score))) ? V_temp :
                     ($signed(o_d_score) >= $signed(o_i_score)) ? o_d_score : o_i_score;
-assign o_v_direct = (($signed(V_temp) >= $signed(o_i_score)) & ($signed(V_temp) >= $signed(o_d_score))) ? 2'd1 :
+// if dia direction == 0 or 1 and current dirction = 1, then current direction = 0
+assign o_v_direct = (($signed(V_temp) >= $signed(o_i_score)) & ($signed(V_temp) >= $signed(o_d_score))) ?
+                    (i_dia_dir[1] ? 2'd1 : 2'd0) : // dia or dia 2 step
                     ($signed(o_d_score) >= $signed(o_i_score)) ? 2'd2 : 2'd3;
 
 endmodule
