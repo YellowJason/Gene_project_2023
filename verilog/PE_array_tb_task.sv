@@ -3,9 +3,9 @@
 `define SDFFILE "./synthesis/Netlist/PE_array_64_syn.sdf"
 
 `ifdef tb0
-    `define GENE1 "./test_data/gene_1_array_10.txt"
-    `define GENE2 "./test_data/gene_2_array_10.txt"
-    `define ALIGN "./test_data/align_10.txt"
+    `define GENE1 "./test_data/gene_1_array_0.txt"
+    `define GENE2 "./test_data/gene_2_array_0.txt"
+    `define ALIGN "./test_data/align_0.txt"
 `elsif tb1
     `define GENE1 "./test_data/gene_1_array_1.txt"
     `define GENE2 "./test_data/gene_2_array_1.txt"
@@ -23,9 +23,9 @@
     `define GENE2 "./test_data/gene_2_array_4.txt"
     `define ALIGN "./test_data/align_4.txt"
 `else
-    `define GENE1 "./test_data/gene_1_array_10.txt"
-    `define GENE2 "./test_data/gene_2_array_10.txt"
-    `define ALIGN "./test_data/align_10.txt"
+    `define GENE1 "./test_data/gene_1_array_0.txt"
+    `define GENE2 "./test_data/gene_2_array_0.txt"
+    `define ALIGN "./test_data/align_0.txt"
 `endif
 
 module tb;
