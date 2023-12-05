@@ -394,7 +394,10 @@ always @(*) begin
             trace_dir_nxt = v_trace_mem;
             counter_nxt = counter + 1;
             // reach bigining (up bound, left bound)
-            if ((((x_max == y_max) & (v_trace_mem != 2'd2)) | ((y_max == 0) & (v_trace_mem != 2'd3))) & (stripe_count == 0)) begin
+            if ((((x_max == y_max) & (v_trace_mem != 2'd2)) |
+                 ((y_max == 0) & (v_trace_mem != 2'd3)) |
+                 ((y_max >= 1) & (v_trace_mem != 2'd3)) |
+                 (({x_max,y_max} == {2'd3,2'd2}) & (v_trace_mem == 2'd0))) & (stripe_count == 0)) begin
                 state_nxt = IDLE;
                 finish_nxt = 1'b1;
             end
