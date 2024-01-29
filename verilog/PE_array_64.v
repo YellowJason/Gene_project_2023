@@ -17,7 +17,7 @@ integer i, j, k;
 parameter g_o_penalty = -14'd12;
 parameter g_e_penalty = -14'd1;
 parameter mem_length = 512;
-parameter threshold = 14'd250;
+parameter threshold = 14'd240;
 parameter default_shift = 9'd32;
 
 // ***************for test***************
