@@ -100,7 +100,7 @@ assign o_end_position = end_position;
 
 // save min & max of every steps
 reg [13:0] min_array [0:mem_length-1], min_array_nxt [0:mem_length-1];
-reg [13:0] local_max, local_max_nxt; // max score in the stripe
+reg [13:0] local_max, local_max_nxt, local_min, local_min_nxt, bias, bias_nxt; // max & min score in the stripe
 wire [13:0] stop_threshold;
 assign stop_threshold = local_max - threshold;
 assign o_max_score_stripe = local_max;
@@ -211,11 +211,11 @@ generate
             PE single_PE(
                 .i_A(A_array[gv]),
                 .i_B(B_array[gv]),
-                .i_v_diagonal_score(dia_score_first_PE),
-                .i_v_top_score(top_score_first_PE),
+                .i_v_diagonal_score(dia_score_first_PE-bias),
+                .i_v_top_score(top_score_first_PE-bias),
                 .i_v_left_score(v_score_array[gv]),
                 .i_i_left_score(i_score_lef_array[gv]),
-                .i_d_top_score(top_d_first_PE),
+                .i_d_top_score(top_d_first_PE-bias),
                 .i_dia_dir(2'd2),
                 .o_v_score(v_score_out[gv]),
                 .o_i_score(i_score_out[gv]),
@@ -266,6 +266,8 @@ always @(*) begin
         min_array_nxt[j] = min_array[j];
     end
     local_max_nxt = local_max;
+    local_min_nxt = local_min;
+    bias_nxt = bias;
     // PE enable is a shift register
     for (i=0; i<64; i=i+1) begin
         PE_enable_nxt[i] = PE_enable[i];
@@ -314,6 +316,7 @@ always @(*) begin
             end
             dia_score_first_PE_nxt = dia_score_first_PE;
             local_max_nxt = 14'b11000000000000;
+            local_min_nxt = 14'b01000000000000;
             start_position_nxt = 10'b0;
         end
         CALC: begin
@@ -344,6 +347,7 @@ always @(*) begin
                 // Save min score after 64 cycles
                 if (counter[9:6] != 4'b0) begin
                     min_array_nxt[counter-64] = min_in_PEs; // minimum of 64'th step should be put in first position
+                    local_min_nxt = ($signed(min_in_PEs) < $signed(local_min)) ? min_in_PEs : local_min;
                     // start position for next stripe
                     if (($signed(min_array[start_position]) <= $signed(stop_threshold)) &
                         (min_array[start_position] != -14'd4096) &
@@ -389,6 +393,7 @@ always @(*) begin
                 dia_score_first_PE_nxt = last_PE_out_v_score;
             end
             start_position_old_nxt = start_position;
+            bias_nxt = $signed(local_max[13:1]) + $signed(local_min[13:1]);
         end
         TRAC: begin
             trace_dir_nxt = v_trace_mem;
@@ -559,6 +564,8 @@ always @(posedge i_clk or posedge i_rst) begin
             min_array[j] <= 14'b0;
         end
         local_max <= 14'b11000000000000;
+        local_min <= 14'b01000000000000;
+        bias <= 14'b0;
         finish <= 1'b0;
         start_position <= 10'b0;
         start_position_old <= 10'b0;
@@ -600,6 +607,8 @@ always @(posedge i_clk or posedge i_rst) begin
             min_array[j] <= min_array_nxt[j];
         end
         local_max <= local_max_nxt;
+        local_min <= local_min_nxt;
+        bias <= bias_nxt;
         finish <= finish_nxt;
         start_position <= start_position_nxt;
         start_position_old <= start_position_old_nxt;
