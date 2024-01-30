@@ -14,10 +14,10 @@ module PE_array_64 (
 
 integer i, j, k;
 
-parameter g_o_penalty = -14'd12;
-parameter g_e_penalty = -14'd1;
+parameter g_o_penalty = -11'd12;
+parameter g_e_penalty = -11'd1;
 parameter mem_length = 512;
-parameter threshold = 14'd240;
+parameter threshold = 11'd240;
 parameter default_shift = 9'd32;
 
 // ***************for test***************
@@ -45,22 +45,22 @@ reg [1:0] B_array[63:0], B_array_nxt[63:0];
 reg [63:0] PE_enable, PE_enable_nxt;
 
 // score feed into PEs
-reg [13:0] v_score_array[0:63]    , v_score_array_nxt[0:63];
-reg [13:0] v_score_dia_array[0:63], v_score_dia_array_nxt[0:63]; // v_score delay one cycle
-reg [13:0] i_score_lef_array[0:63], i_score_lef_array_nxt[0:63];
-reg [13:0] d_score_top_array[0:63], d_score_top_array_nxt[0:63];
+reg [10:0] v_score_array[0:63]    , v_score_array_nxt[0:63];
+reg [10:0] v_score_dia_array[0:63], v_score_dia_array_nxt[0:63]; // v_score delay one cycle
+reg [10:0] i_score_lef_array[0:63], i_score_lef_array_nxt[0:63];
+reg [10:0] d_score_top_array[0:63], d_score_top_array_nxt[0:63];
 
 // score for left boundary initial
-reg [13:0] left_bound_init, left_bound_init_nxt;
-reg [13:0] top_bound_init;
+reg [10:0] left_bound_init, left_bound_init_nxt;
+reg [10:0] top_bound_init;
 
 // if stripe start from left boundary
 reg start_on_bound, start_on_bound_nxt;
 
 // PEs output
-wire [13:0] v_score_out[0:63];
-wire [13:0] i_score_out[0:63];
-wire [13:0] d_score_out[0:63];
+wire [10:0] v_score_out[0:63];
+wire [10:0] i_score_out[0:63];
+wire [10:0] d_score_out[0:63];
 
 // directions
 reg  [1:0] v_dir[0:63], v_dir_dia[0:63];
@@ -71,15 +71,15 @@ reg  [63:0] d_dir;
 wire [63:0] d_dir_nxt;
 
 // dia & top score of first PE
-reg [13:0] dia_score_first_PE, dia_score_first_PE_nxt;
+reg [10:0] dia_score_first_PE, dia_score_first_PE_nxt;
 
 // min & max of PEs
-wire [13:0] max_in_PEs, min_in_PEs;
+wire [10:0] max_in_PEs, min_in_PEs;
 wire [5:0] max_y_temp;
-reg [14*64-1:0] v_score_merge;
+reg [11*64-1:0] v_score_merge;
 always @(*) begin
     for (i=0; i<64; i=i+1) begin
-        v_score_merge[i*14+:14] = v_score_array[i];
+        v_score_merge[i*11+:11] = v_score_array[i];
     end
 end
 max_n_min comparator(
@@ -99,9 +99,9 @@ assign o_start_position = start_position;
 assign o_end_position = end_position;
 
 // save min & max of every steps
-reg [13:0] min_array [0:mem_length-1], min_array_nxt [0:mem_length-1];
-reg [13:0] local_max, local_max_nxt, local_min, local_min_nxt, bias, bias_nxt; // max & min score in the stripe
-wire [13:0] stop_threshold;
+reg [10:0] min_array [0:mem_length-1], min_array_nxt [0:mem_length-1];
+reg [10:0] local_max, local_max_nxt, local_min, local_min_nxt, bias, bias_nxt; // max & min score in the stripe
+wire [10:0] stop_threshold;
 assign stop_threshold = local_max - threshold;
 assign o_max_score_stripe = local_max;
 
@@ -153,10 +153,10 @@ Mem_control mem_banks(
 // save score of last PE for next stripe
 // last saved value = [end_position - 63]
 reg wen_a;
-reg [27:0] score_sram_last_PE;
+reg [21:0] score_sram_last_PE;
 reg [8:0] last_PE_waddr, last_PE_raddr;
-wire [13:0] last_PE_out_d_score, last_PE_out_v_score;
-reg [13:0] top_score_first_PE, top_d_first_PE;
+wire [10:0] last_PE_out_d_score, last_PE_out_v_score;
+reg [10:0] top_score_first_PE, top_d_first_PE;
 
 always @(*) begin
     score_sram_last_PE = {d_score_out[63], v_score_out[63]};
@@ -169,11 +169,12 @@ always @(*) begin
     end
     wen_a = ~((state == CALC) & (PE_enable[63] == 1));
     top_score_first_PE = (stripe_count == 4'b0) ? top_bound_init : 
-                         ((start_position_old+counter+63) <= end_position) ? last_PE_out_v_score : 14'b11000000000000;
-    top_d_first_PE = (stripe_count == 4'b0) ? 14'b11000000000000 : 
-                     ((start_position_old+counter+63) <= end_position) ? last_PE_out_d_score : 14'b11000000000000;
+                         ((start_position_old+counter+63) <= end_position) ? last_PE_out_v_score : 11'b11000000000;
+    top_d_first_PE = (stripe_count == 4'b0) ? 11'b11000000000 : 
+                     ((start_position_old+counter+63) <= end_position) ? last_PE_out_d_score : 11'b11000000000;
 end
 
+//******************need modify to 22'b SRAM******************
 sram_dp_512x28 sram_last_PE( 
     .CLKA(i_clk),
     .CLKB(i_clk),
@@ -303,20 +304,20 @@ always @(*) begin
             for (i=0; i<64; i=i+1) begin
                 // change fisrt left score of all PEs to -inf
                 // v_score_array_nxt[i] = $signed(g_o_penalty) + $signed(g_e_penalty) * $signed(i);  // left boundary
-                v_score_array_nxt[i] = 14'b11000000000000;
-                v_score_dia_array_nxt[i] = 14'b11000000000000;
-                i_score_lef_array_nxt[i] = 14'b11000000000000;
-                d_score_top_array_nxt[i] = 14'b11000000000000;
+                v_score_array_nxt[i] = 11'b11000000000;
+                v_score_dia_array_nxt[i] = 11'b11000000000;
+                i_score_lef_array_nxt[i] = 11'b11000000000;
+                d_score_top_array_nxt[i] = 11'b11000000000;
             end
             for (j=0; j<mem_length; j=j+1) begin
-                min_array_nxt[j] = 14'b11000000000000;
+                min_array_nxt[j] = 11'b11000000000;
             end
             if (start_on_bound) begin
                 v_score_array_nxt[0] = left_bound_init;
             end
             dia_score_first_PE_nxt = dia_score_first_PE;
-            local_max_nxt = 14'b11000000000000;
-            local_min_nxt = 14'b01000000000000;
+            local_max_nxt = 11'b11000000000;
+            local_min_nxt = 11'b01000000000;
             start_position_nxt = 10'b0;
         end
         CALC: begin
@@ -329,7 +330,7 @@ always @(*) begin
             v_score_array_nxt[0] = PE_enable[0] ? v_score_out[0] : v_score_array[0];
             v_score_dia_array_nxt[0] = PE_enable[0] ? v_score_array[0] : v_score_dia_array[0];
             i_score_lef_array_nxt[0] = PE_enable[0] ? i_score_out[0] : i_score_lef_array[0];
-            d_score_top_array_nxt[0] = PE_enable[0] ? d_score_out[0] : 14'b11000000000000;
+            d_score_top_array_nxt[0] = PE_enable[0] ? d_score_out[0] : 11'b11000000000;
             for (i=1; i<64; i=i+1) begin
                 A_array_nxt[i] = A_array[i-1];
                 v_score_array_nxt[i] = PE_enable[i] ? v_score_out[i] : v_score_array[i];
@@ -350,7 +351,7 @@ always @(*) begin
                     local_min_nxt = ($signed(min_in_PEs) < $signed(local_min)) ? min_in_PEs : local_min;
                     // start position for next stripe
                     if (($signed(min_array[start_position]) <= $signed(stop_threshold)) &
-                        (min_array[start_position] != -14'd4096) &
+                        (min_array[start_position] != -11'd512) &
                         (start_position <= counter - 7'd70)) begin
                         start_position_nxt = start_position + 2'd2;
                     end
@@ -371,7 +372,7 @@ always @(*) begin
             if (((PE_enable[63] == 1) & (PE_enable[62] == 0)) | ($signed(max_in_PEs) < $signed(stop_threshold)) | (counter == 10'd511)) begin
                 state_nxt = EVAL;
                 counter_nxt = 10'b0;
-                dia_score_first_PE_nxt = 14'b11000000000000; // if next stripe start from left boundary
+                dia_score_first_PE_nxt = 11'b11000000000; // if next stripe start from left boundary
                 end_position_nxt = counter;
                 start_position_nxt = ($signed(min_array[start_position]) <= $signed(stop_threshold)) ? default_shift : start_position;
                 start_shift_nxt[stripe_count] = start_position_nxt;
@@ -393,7 +394,7 @@ always @(*) begin
                 dia_score_first_PE_nxt = last_PE_out_v_score;
             end
             start_position_old_nxt = start_position;
-            bias_nxt = $signed(local_max[13:1]) + $signed(local_min[13:1]);
+            bias_nxt = $signed(local_max[10:1]) + $signed(local_min[10:1]);
         end
         TRAC: begin
             trace_dir_nxt = v_trace_mem;
@@ -547,10 +548,10 @@ always @(posedge i_clk or posedge i_rst) begin
         for (i=0; i<64; i=i+1) begin
             A_array[i] <= 2'b0;
             B_array[i] <= 2'b0;
-            v_score_array[i] <= 14'b0;
-            v_score_dia_array[i] <= 14'b0;
-            i_score_lef_array[i] <= 14'b0;
-            d_score_top_array[i] <= 14'b0;
+            v_score_array[i] <= 11'b0;
+            v_score_dia_array[i] <= 11'b0;
+            i_score_lef_array[i] <= 11'b0;
+            d_score_top_array[i] <= 11'b0;
             v_dir[i] <= 2'd2;
             v_dir_dia[i] <= 2'd2;
             i_dir[i] <= 1'b0;
@@ -561,11 +562,11 @@ always @(posedge i_clk or posedge i_rst) begin
         end
         dia_score_first_PE <= 14'd0;
         for (j=0; j<mem_length; j=j+1) begin
-            min_array[j] <= 14'b0;
+            min_array[j] <= 11'b0;
         end
-        local_max <= 14'b11000000000000;
-        local_min <= 14'b01000000000000;
-        bias <= 14'b0;
+        local_max <= 11'b11000000000;
+        local_min <= 11'b01000000000;
+        bias <= 11'b0;
         finish <= 1'b0;
         start_position <= 10'b0;
         start_position_old <= 10'b0;
@@ -626,24 +627,24 @@ end
 endmodule
 
 module max_n_min(
-    input [14*64-1:0] v_score_merge,
-    output [13:0] o_max,
-    output [13:0] o_min,
+    input [11*64-1:0] v_score_merge,
+    output [10:0] o_max,
+    output [10:0] o_min,
     output [5:0]  o_x
 );
 
 integer i;
 
-reg [13:0] v_score [0:63];
+reg [10:0] v_score [0:63];
 always @(*) begin
     for (i=0; i<64; i=i+1) begin
-        v_score[i] = v_score_merge[i*14+:14];
+        v_score[i] = v_score_merge[i*11+:11];
     end
 end
 
 // layer 1, 32 comparators
-reg [13:0] min_temp_l1 [0:31];
-reg [13:0] max_temp_l1 [0:31];
+reg [10:0] min_temp_l1 [0:31];
+reg [10:0] max_temp_l1 [0:31];
 reg [5:0] x_l1 [0:31];
 always @(*) begin
     for (i=0; i<32; i=i+1) begin
@@ -653,8 +654,8 @@ always @(*) begin
     end
 end
 // layer 2, 16 comparators
-reg [13:0] min_temp_l2 [0:15];
-reg [13:0] max_temp_l2 [0:15];
+reg [10:0] min_temp_l2 [0:15];
+reg [10:0] max_temp_l2 [0:15];
 reg [5:0] x_l2 [0:15];
 always @(*) begin
     for (i=0; i<16; i=i+1) begin
@@ -664,8 +665,8 @@ always @(*) begin
     end
 end
 // layer 3, 8 comparators
-reg [13:0] min_temp_l3 [0:7];
-reg [13:0] max_temp_l3 [0:7];
+reg [10:0] min_temp_l3 [0:7];
+reg [10:0] max_temp_l3 [0:7];
 reg [5:0] x_l3 [0:7];
 always @(*) begin
     for (i=0; i<8; i=i+1) begin
@@ -675,8 +676,8 @@ always @(*) begin
     end
 end
 // layer 4, 4 comparators
-reg [13:0] min_temp_l4 [0:3];
-reg [13:0] max_temp_l4 [0:3];
+reg [10:0] min_temp_l4 [0:3];
+reg [10:0] max_temp_l4 [0:3];
 reg [5:0] x_l4 [0:3];
 always @(*) begin
     for (i=0; i<4; i=i+1) begin
@@ -686,8 +687,8 @@ always @(*) begin
     end
 end
 // layer 5, 2 comparators
-reg [13:0] min_temp_l5 [0:1];
-reg [13:0] max_temp_l5 [0:1];
+reg [10:0] min_temp_l5 [0:1];
+reg [10:0] max_temp_l5 [0:1];
 reg [5:0] x_l5 [0:1];
 always @(*) begin
     for (i=0; i<2; i=i+1) begin
