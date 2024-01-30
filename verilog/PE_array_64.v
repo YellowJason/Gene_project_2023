@@ -175,7 +175,7 @@ always @(*) begin
 end
 
 //******************need modify to 22'b SRAM******************
-sram_dp_512x28 sram_last_PE( 
+sram_dp_512_22 sram_last_PE( 
     .CLKA(i_clk),
     .CLKB(i_clk),
     .CENA(cen),
@@ -185,7 +185,7 @@ sram_dp_512x28 sram_last_PE(
     .AA(last_PE_waddr),
     .AB(last_PE_raddr),
     .DA(score_sram_last_PE),
-    .DB(28'b0),
+    .DB(22'b0),
     // output
     // .QA(),
     .QB({last_PE_out_d_score, last_PE_out_v_score}),
